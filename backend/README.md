@@ -1,114 +1,55 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Vin — API backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST (NestJS + Drizzle ORM + PostgreSQL) pour l'application de gestion de cave à vin. Voir `/projects` (doc "spec-technique.md") pour la spécification complète.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Stack
 
-## Description
+- NestJS 12 (ESM, Node 22+)
+- Drizzle ORM + PostgreSQL (choisi plutôt que Prisma : pas de binaire natif à télécharger, ce qui posait problème dans l'environnement de build utilisé pour ce projet)
+- JWT (via `@nestjs/jwt` / `passport-jwt`)
+- IA "bring your own key" : Anthropic, OpenAI, Google Gemini (appelés en HTTP direct, pas de SDK)
+- Export CSV (fait main) + PDF (`pdfkit`)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Démarrer en local
 
 ```bash
-$ npm install
+cp .env.example .env   # puis ajuster les secrets
+docker compose up -d db   # lance juste Postgres
+npm install
+npm run db:generate    # si tu modifies src/db/schema.ts
+npm run build
+npm run db:migrate     # applique les migrations
+npm run start:dev
 ```
 
-## Compile and run the project
+L'API écoute sur `http://localhost:3000/api/vin` (préfixe global `api/vin`). `GET /api/vin/health` ne nécessite pas d'authentification.
+
+## Tests
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+DATABASE_URL=postgresql://vin:vin@localhost:5432/vin npm test
 ```
 
-## Run tests
+Les tests touchant la base sont des tests d'intégration légers (pas de mock de Drizzle) : ils ont besoin d'un Postgres local avec les migrations appliquées. Les appels aux fournisseurs IA sont mockés (`fetch` stubé) dans leurs tests.
 
-```bash
-# unit tests
-$ npm run test
+## Aperçu des routes
 
-# e2e tests
-$ npm run test:e2e
+| Domaine | Routes principales |
+|---|---|
+| Auth | `POST /auth/register-household`, `POST /auth/join-household`, `POST /auth/login`, `GET /auth/me` |
+| Foyer | `GET /household/me`, `PATCH /household/me`, `POST /household/me/regenerate-invite-code` |
+| Cave | `GET/POST /cellar/units`, `GET /cellar/units/:id`, `POST /cellar/units/:id/suggest-location` |
+| Bouteilles | `POST/GET /bottles`, `GET/PATCH/DELETE /bottles/:id`, `POST /bottles/:id/consume` |
+| Fournisseurs IA | `GET/POST /ai-providers`, `DELETE /ai-providers/:id` |
+| Scan étiquette | `POST /scan` (multipart, champ `photo`), `GET /scan`, `GET /scan/:id`, `PATCH /scan/:id/link-bottle` |
+| Accords mets-vin | `POST /pairing`, `GET /pairing`, `GET /pairing/:id` |
+| Dégustation | `GET /tasting-notes`, `PATCH/DELETE /tasting-notes/:id` |
+| Liste d'envies | `POST/GET /wishlist`, `PATCH/DELETE /wishlist/:id`, `POST /wishlist/:id/convert-to-bottle` |
+| Tableau de bord | `GET /dashboard` |
+| Export | `GET /export/cellar.csv`, `GET /export/cellar.pdf` |
 
-# test coverage
-$ npm run test:cov
-```
+Toutes les routes sauf `/health`, `/auth/register-household`, `/auth/join-household` et `/auth/login` exigent un header `Authorization: Bearer <token>`.
 
-## Deployment
+## Déploiement
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Voir `Dockerfile` (build multi-stage + migration au démarrage) et `docker-compose.yml`. Notes de déploiement Coolify détaillées à venir (voir la tâche dédiée dans le suivi de projet).

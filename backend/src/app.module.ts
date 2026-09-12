@@ -12,6 +12,10 @@ import { BottleModule } from './bottle/bottle.module.js';
 import { AiProviderModule } from './ai-provider/ai-provider.module.js';
 import { ScanModule } from './scan/scan.module.js';
 import { PairingModule } from './pairing/pairing.module.js';
+import { TastingModule } from './tasting/tasting.module.js';
+import { WishlistModule } from './wishlist/wishlist.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
+import { ExportModule } from './export/export.module.js';
 
 @Module({
   imports: [
@@ -28,6 +32,10 @@ import { PairingModule } from './pairing/pairing.module.js';
     AiProviderModule,
     ScanModule,
     PairingModule,
+    TastingModule,
+    WishlistModule,
+    DashboardModule,
+    ExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
