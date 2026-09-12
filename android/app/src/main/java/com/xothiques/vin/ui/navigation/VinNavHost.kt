@@ -1,6 +1,7 @@
 package com.xothiques.vin.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xothiques.vin.ui.auth.ServerSetupScreen
