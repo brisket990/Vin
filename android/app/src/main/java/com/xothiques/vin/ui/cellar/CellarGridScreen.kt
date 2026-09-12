@@ -17,12 +17,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -57,7 +59,7 @@ import com.xothiques.vin.ui.theme.wineColorFor
 fun CellarGridScreen(
     onOpenBottle: (String) -> Unit,
     onAddBottle: (locationId: String?) -> Unit,
-    onOpenSettings: () -> Unit,
+    onScan: () -> Unit,
     viewModel: CellarViewModel = hiltViewModel(),
 ) {
     val unitsState by viewModel.unitsState.collectAsState()
@@ -77,7 +79,9 @@ fun CellarGridScreen(
             TopAppBar(
                 title = { Text("Ma cave") },
                 actions = {
-                    TextButton(onClick = onOpenSettings) { Text("Réglages") }
+                    IconButton(onClick = onScan) {
+                        Icon(Icons.Filled.PhotoCamera, contentDescription = "Scanner une étiquette")
+                    }
                 },
             )
         },

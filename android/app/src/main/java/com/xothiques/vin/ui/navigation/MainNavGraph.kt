@@ -4,45 +4,52 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SpaceDashboard
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.xothiques.vin.ui.bottle.BottleDetailScreen
 import com.xothiques.vin.ui.bottle.BottleFormScreen
 import com.xothiques.vin.ui.cellar.CellarGridScreen
+import com.xothiques.vin.ui.dashboard.DashboardScreen
+import com.xothiques.vin.ui.pairing.PairingScreen
+import com.xothiques.vin.ui.scan.ScanScreen
+import com.xothiques.vin.ui.settings.AiProviderSettingsScreen
 import com.xothiques.vin.ui.settings.SettingsScreen
+import com.xothiques.vin.ui.wishlist.WishlistScreen
 
 private data class BottomTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val BOTTOM_TABS = listOf(
     BottomTab(MainRoutes.CELLAR, "Cave", Icons.Filled.WineBar),
+    BottomTab(MainRoutes.WISHLIST, "Envies", Icons.Filled.CardGiftcard),
+    BottomTab(MainRoutes.PAIRING, "Accords", Icons.Filled.Restaurant),
+    BottomTab(MainRoutes.DASHBOARD, "Tableau de bord", Icons.Filled.SpaceDashboard),
     BottomTab(MainRoutes.SETTINGS, "Réglages", Icons.Filled.Settings),
 )
 
 /**
- * v1 of the main graph: the cave grid and settings live behind a bottom bar,
- * bottle detail/form are pushed on top. Pairing, wishlist, dashboard, scan
- * and AI provider settings (all in the next batch of screens) will join the
- * bottom bar / be pushed from Settings the same way once they exist.
+ * Main graph: cave / envies / accords / tableau de bord / réglages live
+ * behind a bottom bar. Bottle detail/form, the scan flow and AI provider
+ * settings are pushed on top of it.
  */
 @Composable
 fun MainNavGraph() {
@@ -61,9 +68,12 @@ fun MainNavGraph() {
                         onAddBottle = { locationId ->
                             navController.navigate(MainRoutes.bottleForm(locationId))
                         },
-                        onOpenSettings = { navController.navigate(MainRoutes.SETTINGS) },
+                        onScan = { navController.navigate(MainRoutes.scan()) },
                     )
                 }
+                composable(MainRoutes.WISHLIST) { WishlistScreen() }
+                composable(MainRoutes.PAIRING) { PairingScreen() }
+                composable(MainRoutes.DASHBOARD) { DashboardScreen() }
                 composable(MainRoutes.SETTINGS) {
                     SettingsScreen(
                         onSignedOut = {
@@ -77,7 +87,22 @@ fun MainNavGraph() {
                     )
                 }
                 composable(MainRoutes.AI_PROVIDER_SETTINGS) {
-                    AiProviderSettingsPlaceholder()
+                    AiProviderSettingsScreen(onBack = { navController.popBackStack() })
+                }
+                composable(
+                    route = MainRoutes.SCAN,
+                    arguments = listOf(
+                        navArgument("locationId") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) {
+                    ScanScreen(
+                        onBack = { navController.popBackStack() },
+                        onSaved = { navController.popBackStack() },
+                    )
                 }
                 composable(
                     route = MainRoutes.BOTTLE_DETAIL,
@@ -140,15 +165,5 @@ private fun MainBottomBar(navController: NavHostController) {
                 label = { Text(tab.label) },
             )
         }
-    }
-}
-
-@Composable
-private fun AiProviderSettingsPlaceholder() {
-    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Text(
-            "La configuration des fournisseurs IA arrive dans le prochain lot d'écrans.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
     }
 }
