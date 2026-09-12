@@ -1,0 +1,272 @@
+package com.xothiques.vin.ui.bottle
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import com.xothiques.vin.data.remote.dto.BottleDto
+import com.xothiques.vin.data.remote.resolvePhotoUrl
+import com.xothiques.vin.ui.common.FullScreenError
+import com.xothiques.vin.ui.common.FullScreenLoading
+import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.theme.wineColorFor
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BottleDetailScreen(
+    onBack: () -> Unit,
+    onEdit: (String) -> Unit,
+    viewModel: BottleDetailViewModel = hiltViewModel(),
+) {
+    val bottleState by viewModel.bottleState.collectAsState()
+    val consumeState by viewModel.consumeState.collectAsState()
+    val deleteState by viewModel.deleteState.collectAsState()
+    var showConsumeDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(consumeState) {
+        if (consumeState is UiState.Success) {
+            viewModel.resetConsumeState()
+            showConsumeDialog = false
+        }
+    }
+    LaunchedEffect(deleteState) {
+        if (deleteState is UiState.Success) onBack()
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Bouteille") },
+                actions = {
+                    val bottle = (bottleState as? UiState.Success)?.data
+                    if (bottle != null) {
+                        IconButton(onClick = { onEdit(bottle.id) }) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Modifier")
+                        }
+                        IconButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Supprimer")
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (val state = bottleState) {
+                is UiState.Loading -> FullScreenLoading()
+                is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
+                is UiState.Success -> BottleDetailContent(
+                    bottle = state.data,
+                    onConsume = { showConsumeDialog = true },
+                )
+            }
+        }
+
+        if (showConsumeDialog) {
+            ConsumeDialog(
+                submitState = consumeState,
+                maxQuantity = (bottleState as? UiState.Success)?.data?.quantity ?: 1,
+                onDismiss = { showConsumeDialog = false },
+                onConfirm = viewModel::consume,
+            )
+        }
+
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { Text("Supprimer cette bouteille ?") },
+                text = { Text("Cette action est définitive.") },
+                confirmButton = {
+                    TextButton(onClick = { showDeleteConfirm = false; viewModel.delete() }) {
+                        Text("Supprimer")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Annuler") }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottleDetailContent(bottle: BottleDto, onConsume: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val photoUrl = resolvePhotoUrl(bottle.labelPhotoUrl)
+        if (photoUrl != null) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Étiquette",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth().height(220.dp),
+            )
+        }
+
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(wineColorFor(bottle.color), RoundedCornerShape(4.dp)),
+            )
+            Text(
+                text = bottle.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+
+        val subtitle = listOfNotNull(bottle.producer, bottle.vintage?.toString())
+            .joinToString(" — ")
+        if (subtitle.isNotBlank()) {
+            Text(subtitle, style = MaterialTheme.typography.titleMedium)
+        }
+
+        Card {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                InfoRow("Région", listOfNotNull(bottle.region, bottle.appellation).joinToString(" / ").ifBlank { "—" })
+                InfoRow("Cépages", bottle.grapeVarieties?.joinToString(", ")?.ifBlank { "—" } ?: "—")
+                InfoRow("Quantité en cave", bottle.quantity.toString())
+                InfoRow(
+                    "Prix d'achat",
+                    bottle.purchasePriceCents?.let { "%.2f €".format(it / 100.0) } ?: "—",
+                )
+                InfoRow(
+                    "Fenêtre d'apogée",
+                    if (bottle.drinkFromYear != null || bottle.drinkUntilYear != null) {
+                        "${bottle.drinkFromYear ?: "?"} — ${bottle.drinkUntilYear ?: "?"}"
+                    } else "—",
+                )
+                InfoRow("Statut", if (bottle.status == "in_cellar") "En cave" else "Bue")
+            }
+        }
+
+        if (!bottle.notes.isNullOrBlank()) {
+            Text("Notes", style = MaterialTheme.typography.titleSmall)
+            Text(bottle.notes)
+        }
+
+        if (bottle.status == "in_cellar") {
+            Button(onClick = onConsume, modifier = Modifier.fillMaxWidth()) {
+                Text("Marquer comme bue")
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun ConsumeDialog(
+    submitState: UiState<Unit>?,
+    maxQuantity: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (quantity: Int?, rating: Int?, comment: String?) -> Unit,
+) {
+    var quantity by remember { mutableStateOf("1") }
+    var rating by remember { mutableStateOf("") }
+    var comment by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Bouteille bue") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Ajoute une note de dégustation pour garder une trace de ce que tu en as pensé.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = { quantity = it.filter(Char::isDigit) },
+                    label = { Text("Quantité bue (sur $maxQuantity)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = rating,
+                    onValueChange = { rating = it.filter(Char::isDigit) },
+                    label = { Text("Note sur 5 (optionnel)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it },
+                    label = { Text("Commentaire (optionnel)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (submitState is UiState.Error) {
+                    Text(submitState.message, color = MaterialTheme.colorScheme.error)
+                }
+                if (submitState is UiState.Loading) {
+                    CircularProgressIndicator()
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(
+                        quantity.toIntOrNull(),
+                        rating.toIntOrNull(),
+                        comment.ifBlank { null },
+                    )
+                },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Confirmer") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
