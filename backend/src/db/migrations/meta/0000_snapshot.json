@@ -1,5 +1,5 @@
 {
-  "id": "cc88f4be-552c-4a5c-a398-954216fed63c",
+  "id": "19ea12e7-96ef-4b2f-b79d-0cb7f2c2a6c4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -903,8 +903,7 @@
       "schema": "public",
       "values": [
         "in_cellar",
-        "consumed",
-        "wishlist"
+        "consumed"
       ]
     },
     "public.user_role": {

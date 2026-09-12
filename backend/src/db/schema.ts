@@ -39,11 +39,22 @@ export const wineColorEnum = pgEnum('wine_color', [
   'fortified',
 ]);
 
+// Wishlist (bottles not yet owned) is modeled by the separate wishlistItems
+// table below, not as a bottle status -- a Bottle row always represents
+// something the household actually owns (or owned, if consumed).
 export const bottleStatusEnum = pgEnum('bottle_status', [
   'in_cellar',
   'consumed',
-  'wishlist',
 ]);
+
+// Re-exported as plain arrays so DTOs (class-validator @IsIn) and other
+// non-Drizzle code can reference the same source of truth without importing
+// pg-core enum internals.
+export const userRoleValues = userRoleEnum.enumValues;
+export const aiProviderValues = aiProviderEnum.enumValues;
+export const aiUsageValues = aiUsageEnum.enumValues;
+export const wineColorValues = wineColorEnum.enumValues;
+export const bottleStatusValues = bottleStatusEnum.enumValues;
 
 // ---------------------------------------------------------------------------
 // Household / Users

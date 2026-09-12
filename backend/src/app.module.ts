@@ -7,6 +7,8 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { HouseholdModule } from './household/household.module.js';
+import { CellarModule } from './cellar/cellar.module.js';
+import { BottleModule } from './bottle/bottle.module.js';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { HouseholdModule } from './household/household.module.js';
     DrizzleModule,
     AuthModule,
     HouseholdModule,
+    CellarModule,
+    BottleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

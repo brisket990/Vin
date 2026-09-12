@@ -1,6 +1,6 @@
 CREATE TYPE "public"."ai_provider" AS ENUM('anthropic', 'openai', 'google');--> statement-breakpoint
 CREATE TYPE "public"."ai_usage" AS ENUM('recognition', 'pairing', 'both');--> statement-breakpoint
-CREATE TYPE "public"."bottle_status" AS ENUM('in_cellar', 'consumed', 'wishlist');--> statement-breakpoint
+CREATE TYPE "public"."bottle_status" AS ENUM('in_cellar', 'consumed');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('owner', 'member');--> statement-breakpoint
 CREATE TYPE "public"."wine_color" AS ENUM('red', 'white', 'rose', 'sparkling', 'sweet', 'fortified');--> statement-breakpoint
 CREATE TABLE "ai_provider_configs" (
