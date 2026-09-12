@@ -8,6 +8,7 @@ CREATE TABLE "ai_provider_configs" (
 	"household_id" uuid NOT NULL,
 	"provider" "ai_provider" NOT NULL,
 	"api_key_encrypted" text NOT NULL,
+	"model" text,
 	"usage" "ai_usage" DEFAULT 'both' NOT NULL,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

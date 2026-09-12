@@ -97,6 +97,9 @@ export const aiProviderConfigs = pgTable(
     provider: aiProviderEnum('provider').notNull(),
     // AES-256-GCM ciphertext (iv + authTag + ciphertext, base64) -- never store plaintext keys.
     apiKeyEncrypted: text('api_key_encrypted').notNull(),
+    // Optional override of the default model for this provider (model names
+    // and availability change frequently -- see ai-provider/provider-defaults.ts).
+    model: text('model'),
     usage: aiUsageEnum('usage').notNull().default('both'),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })

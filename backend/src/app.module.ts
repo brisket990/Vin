@@ -9,6 +9,9 @@ import { AuthModule } from './auth/auth.module.js';
 import { HouseholdModule } from './household/household.module.js';
 import { CellarModule } from './cellar/cellar.module.js';
 import { BottleModule } from './bottle/bottle.module.js';
+import { AiProviderModule } from './ai-provider/ai-provider.module.js';
+import { ScanModule } from './scan/scan.module.js';
+import { PairingModule } from './pairing/pairing.module.js';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { BottleModule } from './bottle/bottle.module.js';
     HouseholdModule,
     CellarModule,
     BottleModule,
+    AiProviderModule,
+    ScanModule,
+    PairingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
