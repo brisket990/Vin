@@ -3,3 +3,4 @@ backend/dist/
 backend/data/
 backend/.env
 **/*.log
+backend/tsconfig.build.tsbuildinfo
