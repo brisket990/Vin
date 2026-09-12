@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,11 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,7 +31,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +52,9 @@ import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinActionCard
+import com.xothiques.vin.ui.common.VinHeader
+import com.xothiques.vin.ui.common.VinListRow
 import com.xothiques.vin.ui.theme.wineColorFor
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -74,40 +77,44 @@ fun CellarGridScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Ma cave") },
-                actions = {
+    val units = (unitsState as? UiState.Success)?.data.orEmpty()
+    val selectedUnit = units.firstOrNull { it.id == selectedUnitId } ?: units.firstOrNull()
+    val occupied = selectedUnit?.locations?.count { it.bottle != null } ?: 0
+    val totalCells = selectedUnit?.locations?.size ?: 0
+
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(
+                title = "Ma cave",
+                subtitle = if (selectedUnit != null) "$occupied bouteilles rangées • $totalCells casiers" else null,
+                trailing = {
                     IconButton(onClick = onScan) {
-                        Icon(Icons.Filled.PhotoCamera, contentDescription = "Scanner une étiquette")
+                        Icon(
+                            Icons.Filled.PhotoCamera,
+                            contentDescription = "Scanner une étiquette",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                        )
                     }
                 },
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { onAddBottle(null) }) {
-                Icon(Icons.Filled.Add, contentDescription = "Ajouter une bouteille")
-            }
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = unitsState) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::loadUnits)
-                is UiState.Success -> {
-                    val units = state.data
-                    if (units.isEmpty()) {
-                        EmptyCellarPrompt(onCreate = { showCreateDialog = true })
-                    } else {
-                        val selectedUnit = units.firstOrNull { it.id == selectedUnitId } ?: units.first()
-                        CellarUnitContent(
-                            units = units,
-                            selectedUnit = selectedUnit,
-                            onSelectUnit = viewModel::selectUnit,
-                            onOpenBottle = onOpenBottle,
-                            onAddBottle = onAddBottle,
-                        )
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = unitsState) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::loadUnits)
+                    is UiState.Success -> {
+                        if (units.isEmpty()) {
+                            EmptyCellarPrompt(onCreate = { showCreateDialog = true })
+                        } else if (selectedUnit != null) {
+                            CellarUnitContent(
+                                units = units,
+                                selectedUnit = selectedUnit,
+                                onSelectUnit = viewModel::selectUnit,
+                                onOpenBottle = onOpenBottle,
+                                onAddBottle = onAddBottle,
+                                onScan = onScan,
+                            )
+                        }
                     }
                 }
             }
@@ -207,6 +214,15 @@ private fun CreateUnitDialog(
     )
 }
 
+private val WINE_COLOR_LABELS = mapOf(
+    "red" to "Vins Rouges",
+    "white" to "Vins Blancs",
+    "rose" to "Vins Rosés",
+    "sparkling" to "Vins Effervescents",
+    "sweet" to "Vins Doux",
+    "fortified" to "Vins Fortifiés",
+)
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun CellarUnitContent(
@@ -215,14 +231,38 @@ private fun CellarUnitContent(
     onSelectUnit: (String) -> Unit,
     onOpenBottle: (String) -> Unit,
     onAddBottle: (String?) -> Unit,
+    onScan: () -> Unit,
 ) {
+    val byColor = remember(selectedUnit) {
+        selectedUnit.locations.mapNotNull { it.bottle }.groupingBy { it.color }.eachCount()
+            .entries.sortedByDescending { it.value }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            VinActionCard(
+                icon = Icons.Filled.Add,
+                label = "Ajouter des vins",
+                onClick = { onAddBottle(null) },
+                modifier = Modifier.weight(1f),
+            )
+            VinActionCard(
+                icon = Icons.Filled.PhotoCamera,
+                label = "Scanner",
+                onClick = onScan,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         if (units.size > 1) {
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = it },
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
             ) {
                 OutlinedTextField(
                     value = selectedUnit.name,
@@ -249,9 +289,32 @@ private fun CellarUnitContent(
             }
         }
 
+        if (byColor.isNotEmpty()) {
+            Text(
+                "Ma collection",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                byColor.forEach { (color, count) ->
+                    VinListRow(
+                        icon = Icons.Filled.WineBar,
+                        title = WINE_COLOR_LABELS[color] ?: color,
+                        subtitle = "$count bouteille" + if (count > 1) "s" else "",
+                        badgeColor = wineColorFor(color).copy(alpha = 0.18f),
+                        badgeContentColor = wineColorFor(color),
+                    )
+                }
+            }
+        }
+
         Text(
-            "${selectedUnit.rowCount} rangées x ${selectedUnit.columnCount} colonnes — appuie sur un casier occupé pour voir la bouteille, ou sur un casier vide pour y ranger une nouvelle bouteille.",
+            "Grille de casiers — ${selectedUnit.rowCount} rangées x ${selectedUnit.columnCount} colonnes. Appuie sur un casier occupé pour voir la bouteille, ou sur un casier vide pour y ranger une nouvelle bouteille.",
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
@@ -281,12 +344,19 @@ private fun CellarUnitContent(
 @Composable
 private fun CellarCell(location: CellarLocationDto, onClick: () -> Unit) {
     val bottle = location.bottle
-    val backgroundColor = if (bottle != null) wineColorFor(bottle.color) else Color.LightGray.copy(alpha = 0.3f)
+    val shape = RoundedCornerShape(12.dp)
+    val backgroundColor = if (bottle != null) wineColorFor(bottle.color) else MaterialTheme.colorScheme.surfaceVariant
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .background(backgroundColor, RoundedCornerShape(6.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .background(backgroundColor, shape)
+            .then(
+                if (bottle == null) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), shape)
+                } else {
+                    Modifier
+                },
+            )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

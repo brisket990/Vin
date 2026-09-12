@@ -2,6 +2,8 @@ package com.xothiques.vin.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xothiques.vin.data.local.Session
+import com.xothiques.vin.data.local.SessionManager
 import com.xothiques.vin.data.remote.dto.HouseholdDto
 import com.xothiques.vin.data.repository.AuthRepository
 import com.xothiques.vin.data.repository.HouseholdRepository
@@ -9,8 +11,10 @@ import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,7 +22,11 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val householdRepository: HouseholdRepository,
     private val authRepository: AuthRepository,
+    sessionManager: SessionManager,
 ) : ViewModel() {
+
+    val session: StateFlow<Session?> = sessionManager.session
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _householdState = MutableStateFlow<UiState<HouseholdDto>>(UiState.Loading)
     val householdState: StateFlow<UiState<HouseholdDto>> = _householdState.asStateFlow()

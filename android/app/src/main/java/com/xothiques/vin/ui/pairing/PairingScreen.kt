@@ -18,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.data.remote.dto.PairingSuggestionDto
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,31 +38,26 @@ fun PairingScreen(viewModel: PairingViewModel = hiltViewModel()) {
     val suggestState by viewModel.suggestState.collectAsState()
     var dish by remember { mutableStateOf("") }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Accords mets-vin") }) }) { padding ->
+    Scaffold { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                Text(
-                    "Décris ton plat, on te propose une bouteille de ta cave qui devrait bien s'accorder.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+            item { VinHeader(title = "Accords mets-vin", subtitle = "Décris un plat, on te suggère une bouteille de ta cave") }
             item {
                 OutlinedTextField(
                     value = dish,
                     onValueChange = { dish = it },
                     label = { Text("Plat (ex: magret de canard aux figues)") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
             }
             item {
                 Button(
                     onClick = { viewModel.suggest(dish.trim()) },
                     enabled = dish.isNotBlank() && suggestState !is UiState.Loading,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 ) {
                     if (suggestState is UiState.Loading) {
                         CircularProgressIndicator(modifier = Modifier.padding(2.dp))
@@ -72,21 +67,47 @@ fun PairingScreen(viewModel: PairingViewModel = hiltViewModel()) {
                 }
             }
             when (val state = suggestState) {
-                is UiState.Error -> item { Text(state.message, color = MaterialTheme.colorScheme.error) }
-                is UiState.Success -> item { PairingResultCard(state.data, highlighted = true) }
+                is UiState.Error -> item {
+                    Text(
+                        state.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                is UiState.Success -> item {
+                    PairingResultCard(state.data, highlighted = true, modifier = Modifier.padding(horizontal = 16.dp))
+                }
                 else -> Unit
             }
-            item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
-            item { Text("Historique", style = MaterialTheme.typography.titleMedium) }
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+            item {
+                Text(
+                    "Historique",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
             when (val state = historyState) {
-                is UiState.Loading -> item { CircularProgressIndicator() }
-                is UiState.Error -> item { Text(state.message, color = MaterialTheme.colorScheme.error) }
+                is UiState.Loading -> item { CircularProgressIndicator(modifier = Modifier.padding(horizontal = 16.dp)) }
+                is UiState.Error -> item {
+                    Text(
+                        state.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
                 is UiState.Success -> {
                     if (state.data.isEmpty()) {
-                        item { Text("Aucune suggestion pour l'instant.", style = MaterialTheme.typography.bodySmall) }
+                        item {
+                            Text(
+                                "Aucune suggestion pour l'instant.",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     } else {
                         items(state.data, key = { it.id }) { suggestion ->
-                            PairingResultCard(suggestion, highlighted = false)
+                            PairingResultCard(suggestion, highlighted = false, modifier = Modifier.padding(horizontal = 16.dp))
                         }
                     }
                 }
@@ -96,9 +117,11 @@ fun PairingScreen(viewModel: PairingViewModel = hiltViewModel()) {
 }
 
 @Composable
-private fun PairingResultCard(suggestion: PairingSuggestionDto, highlighted: Boolean) {
+private fun PairingResultCard(suggestion: PairingSuggestionDto, highlighted: Boolean, modifier: Modifier = Modifier) {
     var rawExpanded by remember { mutableStateOf(false) }
     Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
         colors = if (highlighted) {
             CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
         } else {

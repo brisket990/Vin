@@ -27,7 +27,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +45,7 @@ import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.theme.wineColorFor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,32 +71,42 @@ fun BottleDetailScreen(
         if (deleteState is UiState.Success) onBack()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Bouteille") },
-                actions = {
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(
+                title = "Bouteille",
+                onBack = onBack,
+                trailing = {
                     val bottle = (bottleState as? UiState.Success)?.data
                     if (bottle != null) {
-                        IconButton(onClick = { onEdit(bottle.id) }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Modifier")
-                        }
-                        IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Supprimer")
+                        Row {
+                            IconButton(onClick = { onEdit(bottle.id) }) {
+                                Icon(
+                                    Icons.Filled.Edit,
+                                    contentDescription = "Modifier",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
+                            IconButton(onClick = { showDeleteConfirm = true }) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Supprimer",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
                         }
                     }
                 },
             )
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = bottleState) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
-                is UiState.Success -> BottleDetailContent(
-                    bottle = state.data,
-                    onConsume = { showConsumeDialog = true },
-                )
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = bottleState) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
+                    is UiState.Success -> BottleDetailContent(
+                        bottle = state.data,
+                        onConsume = { showConsumeDialog = true },
+                    )
+                }
             }
         }
 
@@ -165,7 +175,7 @@ private fun BottleDetailContent(bottle: BottleDto, onConsume: () -> Unit) {
             Text(subtitle, style = MaterialTheme.typography.titleMedium)
         }
 
-        Card {
+        Card(shape = MaterialTheme.shapes.large) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 InfoRow("Région", listOfNotNull(bottle.region, bottle.appellation).joinToString(" / ").ifBlank { "—" })
                 InfoRow("Cépages", bottle.grapeVarieties?.joinToString(", ")?.ifBlank { "—" } ?: "—")

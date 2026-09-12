@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,13 +31,11 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,6 +61,7 @@ import com.xothiques.vin.data.remote.dto.ScanResultDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -96,41 +94,33 @@ fun ScanScreen(
         if (saveState is UiState.Success) onSaved()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Scanner une étiquette") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = scanState) {
-                null -> CameraCaptureView(onCaptured = viewModel::scan)
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(state.message, color = MaterialTheme.colorScheme.error)
-                        Button(onClick = viewModel::retake, modifier = Modifier.padding(top = 12.dp)) {
-                            Text("Reprendre une photo")
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(title = "Scanner une étiquette", onBack = onBack)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = scanState) {
+                    null -> CameraCaptureView(onCaptured = viewModel::scan)
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(state.message, color = MaterialTheme.colorScheme.error)
+                            Button(onClick = viewModel::retake, modifier = Modifier.padding(top = 12.dp)) {
+                                Text("Reprendre une photo")
+                            }
                         }
                     }
+                    is UiState.Success -> ScanResultReview(
+                        result = state.data,
+                        saveState = saveState,
+                        preselectedLocationId = viewModel.preselectedLocationId,
+                        onRetake = viewModel::retake,
+                        onSave = { request -> viewModel.saveBottle(state.data.id, request) },
+                    )
                 }
-                is UiState.Success -> ScanResultReview(
-                    result = state.data,
-                    saveState = saveState,
-                    preselectedLocationId = viewModel.preselectedLocationId,
-                    onRetake = viewModel::retake,
-                    onSave = { request -> viewModel.saveBottle(state.data.id, request) },
-                )
             }
         }
     }

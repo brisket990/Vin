@@ -12,10 +12,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -31,7 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +44,8 @@ import com.xothiques.vin.data.remote.dto.AiProviderConfigDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
+import com.xothiques.vin.ui.common.VinIconBadge
 
 private val PROVIDER_OPTIONS = listOf("anthropic" to "Anthropic (Claude)", "openai" to "OpenAI (GPT)", "google" to "Google (Gemini)")
 private val USAGE_OPTIONS = listOf(
@@ -72,41 +72,34 @@ fun AiProviderSettingsScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Fournisseurs IA") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Retour")
-                    }
-                },
-            )
-        },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "Ajouter un fournisseur")
             }
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = listState) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
-                is UiState.Success -> {
-                    if (state.data.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                            Text(
-                                "Aucun fournisseur IA configuré. Ajoute ta clé API Claude, GPT ou Gemini pour activer la reconnaissance d'étiquette et les accords mets-vin.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            items(state.data, key = { it.id }) { config ->
-                                AiProviderCard(config = config, onDelete = { viewModel.remove(config.id) })
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(title = "Fournisseurs IA", onBack = onBack)
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = listState) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
+                    is UiState.Success -> {
+                        if (state.data.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                                Text(
+                                    "Aucun fournisseur IA configuré. Ajoute ta clé API Claude, GPT ou Gemini pour activer la reconnaissance d'étiquette et les accords mets-vin.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        } else {
+                            LazyColumn(
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                items(state.data, key = { it.id }) { config ->
+                                    AiProviderCard(config = config, onDelete = { viewModel.remove(config.id) })
+                                }
                             }
                         }
                     }
@@ -126,25 +119,28 @@ fun AiProviderSettingsScreen(
 
 @Composable
 private fun AiProviderCard(config: AiProviderConfigDto, onDelete: () -> Unit) {
-    Card {
+    Card(shape = MaterialTheme.shapes.large) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Column {
-                Text(
-                    PROVIDER_OPTIONS.firstOrNull { it.first == config.provider }?.second ?: config.provider,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text("Modèle : ${config.model}", style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "Clé : ${config.keyHint}" + if (config.isDefault) " · par défaut" else "",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Text(
-                    USAGE_OPTIONS.firstOrNull { it.first == config.usage }?.second ?: config.usage,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                VinIconBadge(icon = Icons.Filled.SmartToy)
+                Column {
+                    Text(
+                        PROVIDER_OPTIONS.firstOrNull { it.first == config.provider }?.second ?: config.provider,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text("Modèle : ${config.model}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Clé : ${config.keyHint}" + if (config.isDefault) " · par défaut" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        USAGE_OPTIONS.firstOrNull { it.first == config.usage }?.second ?: config.usage,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "Supprimer")

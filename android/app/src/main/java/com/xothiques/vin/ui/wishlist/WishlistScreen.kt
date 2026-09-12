@@ -30,7 +30,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,6 +45,7 @@ import com.xothiques.vin.data.remote.dto.WishlistItemDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 
 private val COLOR_OPTIONS = listOf(
     "red" to "Rouge",
@@ -79,36 +79,38 @@ fun WishlistScreen(viewModel: WishlistViewModel = hiltViewModel()) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Liste d'envies") }) },
         floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Filled.Add, contentDescription = "Ajouter à la liste d'envies")
             }
         },
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = listState) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
-                is UiState.Success -> {
-                    if (state.data.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                            Text(
-                                "Ta liste d'envies est vide. Ajoute les bouteilles que tu voudrais acquérir.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            items(state.data, key = { it.id }) { item ->
-                                WishlistCard(
-                                    item = item,
-                                    onDelete = { viewModel.remove(item.id) },
-                                    onConvert = { convertTarget = item },
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(title = "Liste d'envies", subtitle = "Les bouteilles que tu voudrais acquérir")
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = listState) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
+                    is UiState.Success -> {
+                        if (state.data.isEmpty()) {
+                            Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                                Text(
+                                    "Ta liste d'envies est vide. Ajoute les bouteilles que tu voudrais acquérir.",
+                                    style = MaterialTheme.typography.bodyMedium,
                                 )
+                            }
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                items(state.data, key = { it.id }) { item ->
+                                    WishlistCard(
+                                        item = item,
+                                        onDelete = { viewModel.remove(item.id) },
+                                        onConvert = { convertTarget = item },
+                                    )
+                                }
                             }
                         }
                     }
@@ -137,7 +139,7 @@ fun WishlistScreen(viewModel: WishlistViewModel = hiltViewModel()) {
 
 @Composable
 private fun WishlistCard(item: WishlistItemDto, onDelete: () -> Unit, onConvert: () -> Unit) {
-    Card {
+    Card(shape = MaterialTheme.shapes.large) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

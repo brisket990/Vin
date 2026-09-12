@@ -27,7 +27,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,6 +44,7 @@ import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.theme.wineColorFor
 
 private val COLOR_OPTIONS = listOf(
@@ -71,27 +71,27 @@ fun BottleFormScreen(
         if (submitState is UiState.Success) onSaved()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (viewModel.isEditing) "Modifier la bouteille" else "Nouvelle bouteille") },
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(
+                title = if (viewModel.isEditing) "Modifier la bouteille" else "Nouvelle bouteille",
+                onBack = onBack,
             )
-        },
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = loadState) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(state.message)
-                else -> BottleFormContent(
-                    initial = (loadState as? UiState.Success)?.data,
-                    preselectedLocationId = viewModel.preselectedLocationId,
-                    submitState = submitState,
-                    suggestions = suggestions,
-                    onRequestSuggestions = viewModel::suggestLocations,
-                    onClearSuggestions = viewModel::clearSuggestions,
-                    onSubmit = viewModel::submit,
-                    onBack = onBack,
-                )
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val state = loadState) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(state.message)
+                    else -> BottleFormContent(
+                        initial = (loadState as? UiState.Success)?.data,
+                        preselectedLocationId = viewModel.preselectedLocationId,
+                        submitState = submitState,
+                        suggestions = suggestions,
+                        onRequestSuggestions = viewModel::suggestLocations,
+                        onClearSuggestions = viewModel::clearSuggestions,
+                        onSubmit = viewModel::submit,
+                        onBack = onBack,
+                    )
+                }
             }
         }
     }
@@ -336,7 +336,7 @@ private fun LocationPicker(
     onPick: (String) -> Unit,
     onClear: () -> Unit,
 ) {
-    Card {
+    Card(shape = MaterialTheme.shapes.large) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Emplacement en cave", style = MaterialTheme.typography.titleSmall)
             Text(

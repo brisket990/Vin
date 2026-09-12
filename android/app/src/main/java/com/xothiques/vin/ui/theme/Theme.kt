@@ -11,21 +11,54 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
-    primary = WineRed40,
+    primary = Bordeaux40,
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    primaryContainer = Blush90,
+    onPrimaryContainer = Bordeaux30,
     secondary = Gold40,
-    background = Neutral99,
+    onSecondary = androidx.compose.ui.graphics.Color.White,
+    secondaryContainer = Cream90,
+    onSecondaryContainer = Gold40,
+    tertiary = WineColorRose,
+    background = CreamBackground,
+    onBackground = WarmInk,
+    surface = androidx.compose.ui.graphics.Color.White,
+    onSurface = WarmInk,
+    surfaceVariant = WarmLight90,
+    onSurfaceVariant = WarmMuted,
+    outline = WarmOutline,
 )
 
 private val DarkColors = darkColorScheme(
-    primary = WineRed80,
+    primary = Bordeaux80,
+    onPrimary = Bordeaux20,
+    primaryContainer = BordeauxContainerDark,
+    onPrimaryContainer = Blush90,
     secondary = Gold80,
-    background = Neutral10,
+    onSecondary = Color20(),
+    secondaryContainer = GoldContainerDark,
+    onSecondaryContainer = Gold80,
+    tertiary = WineColorRose,
+    background = WarmDarkBackground,
+    onBackground = WarmPale,
+    surface = WarmDarkSurface,
+    onSurface = WarmPale,
+    surfaceVariant = WarmDarkVariant,
+    onSurfaceVariant = WarmDarkMuted,
+    outline = WarmDarkOutline,
 )
+
+// Small helper kept private to this file: darkColorScheme wants an onSecondary
+// with good contrast against the light Gold80 secondary.
+private fun Color20() = androidx.compose.ui.graphics.Color(0xFF241A00)
 
 @Composable
 fun VinTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    // Off by default: Material You dynamic color would replace this app's
+    // bordeaux/cream wine palette with colors extracted from the phone's
+    // wallpaper, which is not the intended look.
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {
@@ -40,6 +73,7 @@ fun VinTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = VinTypography,
+        shapes = VinShapes,
         content = content,
     )
 }

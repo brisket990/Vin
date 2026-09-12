@@ -13,8 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,8 +48,10 @@ fun RegisterHouseholdScreen(
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Créer un foyer") }) }) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        VinHeader(title = "Créer un foyer", onBack = onBack)
+        Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             Text(
                 "Un foyer regroupe une cave partagée. Tu pourras inviter ton/ta partenaire ensuite depuis les réglages.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -109,9 +110,7 @@ fun RegisterHouseholdScreen(
                     Text("Créer le foyer")
                 }
             }
-            TextButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Retour")
-            }
+        }
         }
     }
 }

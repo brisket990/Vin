@@ -44,6 +44,7 @@ class SessionManager @Inject constructor(
         val ROLE = stringPreferencesKey("role")
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val EMAIL = stringPreferencesKey("email")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
     }
 
     val session: Flow<Session> = dataStore.data.map { prefs ->
@@ -91,5 +92,12 @@ class SessionManager @Inject constructor(
             prefs.remove(Keys.DISPLAY_NAME)
             prefs.remove(Keys.EMAIL)
         }
+    }
+
+    /** "system" (default, follows the phone setting), "light", or "dark". */
+    val themeMode: Flow<String> = dataStore.data.map { prefs -> prefs[Keys.THEME_MODE] ?: "system" }
+
+    suspend fun setThemeMode(mode: String) {
+        dataStore.edit { it[Keys.THEME_MODE] = mode }
     }
 }

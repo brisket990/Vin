@@ -13,8 +13,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,10 +46,10 @@ fun LoginScreen(
         }
     }
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Connexion") })
-    }) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(24.dp)) {
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(title = "Connexion", onBack = onBack)
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -86,8 +85,6 @@ fun LoginScreen(
                     Text("Se connecter")
                 }
             }
-            TextButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
-                Text("Retour")
             }
         }
     }

@@ -15,7 +15,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -28,6 +27,7 @@ import com.xothiques.vin.data.remote.dto.RecentTastingDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
+import com.xothiques.vin.ui.common.VinHeader
 
 private val COLOR_LABELS = mapOf(
     "red" to "Rouge",
@@ -43,12 +43,15 @@ private val COLOR_LABELS = mapOf(
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Tableau de bord") }) }) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val s = state) {
-                is UiState.Loading -> FullScreenLoading()
-                is UiState.Error -> FullScreenError(s.message, onRetry = viewModel::load)
-                is UiState.Success -> DashboardContent(s.data)
+    Scaffold { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            VinHeader(title = "Tableau de bord")
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (val s = state) {
+                    is UiState.Loading -> FullScreenLoading()
+                    is UiState.Error -> FullScreenError(s.message, onRetry = viewModel::load)
+                    is UiState.Success -> DashboardContent(s.data)
+                }
             }
         }
     }
@@ -61,19 +64,24 @@ private fun DashboardContent(stats: DashboardStatsDto) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Card {
+            Card(shape = MaterialTheme.shapes.large) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
                     Column {
-                        Text("${stats.totalBottles}", style = MaterialTheme.typography.headlineMedium)
+                        Text(
+                            "${stats.totalBottles}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                         Text("bouteilles", style = MaterialTheme.typography.bodySmall)
                     }
                     Column {
                         Text(
                             "%.2f €".format(stats.totalValueCents / 100.0),
                             style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                         Text("valeur estimée", style = MaterialTheme.typography.bodySmall)
                     }
@@ -82,7 +90,7 @@ private fun DashboardContent(stats: DashboardStatsDto) {
         }
         if (stats.byColor.isNotEmpty()) {
             item {
-                Card {
+                Card(shape = MaterialTheme.shapes.large) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Répartition par type", style = MaterialTheme.typography.titleMedium)
                         stats.byColor.entries.sortedByDescending { it.value }.forEach { (color, count) ->
@@ -99,7 +107,7 @@ private fun DashboardContent(stats: DashboardStatsDto) {
             }
         }
         item {
-            Card {
+            Card(shape = MaterialTheme.shapes.large) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Fenêtres d'apogée à venir", style = MaterialTheme.typography.titleMedium)
                     if (stats.upcomingApogee.isEmpty()) {
@@ -111,7 +119,7 @@ private fun DashboardContent(stats: DashboardStatsDto) {
             }
         }
         item {
-            Card {
+            Card(shape = MaterialTheme.shapes.large) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Dernières dégustations", style = MaterialTheme.typography.titleMedium)
                     if (stats.recentTastings.isEmpty()) {
