@@ -19,7 +19,12 @@ export class AiProviderService {
     );
     return {
       provider: resolved.provider,
-      client: createProviderClient(resolved.provider, resolved.apiKey, resolved.model),
+      client: createProviderClient(
+        resolved.provider,
+        resolved.apiKey,
+        resolved.model,
+        resolved.baseUrl,
+      ),
     };
   }
 }

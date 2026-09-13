@@ -185,6 +185,7 @@ private fun CameraCaptureView(onCaptured: (File) -> Unit) {
                 val photoFile = File(context.cacheDir, "scan_${System.currentTimeMillis()}.jpg")
                 val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
                 imageCapture.takePicture(
+                    outputOptions,
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(output: ImageCapture.OutputFileResults) {

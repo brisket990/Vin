@@ -22,6 +22,10 @@ export const aiProviderEnum = pgEnum('ai_provider', [
   'anthropic',
   'openai',
   'google',
+  'mistral',
+  'openrouter',
+  'deepseek',
+  'ollama',
 ]);
 
 export const aiUsageEnum = pgEnum('ai_usage', [
@@ -96,10 +100,16 @@ export const aiProviderConfigs = pgTable(
       .references(() => households.id, { onDelete: 'cascade' }),
     provider: aiProviderEnum('provider').notNull(),
     // AES-256-GCM ciphertext (iv + authTag + ciphertext, base64) -- never store plaintext keys.
+    // For 'ollama' (no key needed on a local network) this stores the
+    // encrypted empty string rather than being null, so the column can stay
+    // NOT NULL for every provider.
     apiKeyEncrypted: text('api_key_encrypted').notNull(),
     // Optional override of the default model for this provider (model names
     // and availability change frequently -- see ai-provider/provider-defaults.ts).
     model: text('model'),
+    // Only used by 'ollama': the household's self-hosted server address
+    // (e.g. http://192.168.1.50:11434), no path suffix.
+    baseUrl: text('base_url'),
     usage: aiUsageEnum('usage').notNull().default('both'),
     isDefault: boolean('is_default').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })

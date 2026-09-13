@@ -44,6 +44,7 @@ export class AiProviderConfigService {
         id: c.id,
         provider: c.provider,
         model: c.model ?? DEFAULT_MODELS[c.provider],
+        baseUrl: c.baseUrl,
         usage: c.usage,
         isDefault: c.isDefault,
         keyHint,
@@ -55,7 +56,17 @@ export class AiProviderConfigService {
 
   /** Creates or replaces the household's config for a given provider (one config per provider per household). */
   async upsert(householdId: string, dto: UpsertAiProviderConfigDto) {
-    const apiKeyEncrypted = encryptSecret(dto.apiKey, this.encryptionSecret);
+    if (dto.provider === 'ollama') {
+      if (!dto.baseUrl) {
+        throw new BadRequestException(
+          "Adresse du serveur Ollama requise (ex: http://192.168.1.50:11434).",
+        );
+      }
+    } else if (!dto.apiKey) {
+      throw new BadRequestException('Clé API requise pour ce fournisseur.');
+    }
+
+    const apiKeyEncrypted = encryptSecret(dto.apiKey ?? '', this.encryptionSecret);
 
     const [config] = await this.db
       .insert(aiProviderConfigs)
@@ -64,6 +75,7 @@ export class AiProviderConfigService {
         provider: dto.provider,
         apiKeyEncrypted,
         model: dto.model,
+        baseUrl: dto.provider === 'ollama' ? dto.baseUrl : null,
         usage: dto.usage ?? 'both',
         isDefault: dto.isDefault ?? false,
       })
@@ -72,6 +84,7 @@ export class AiProviderConfigService {
         set: {
           apiKeyEncrypted,
           model: dto.model,
+          baseUrl: dto.provider === 'ollama' ? dto.baseUrl : null,
           usage: dto.usage ?? 'both',
           isDefault: dto.isDefault ?? false,
           updatedAt: new Date(),
@@ -83,9 +96,10 @@ export class AiProviderConfigService {
       id: config.id,
       provider: config.provider,
       model: config.model ?? DEFAULT_MODELS[config.provider],
+      baseUrl: config.baseUrl,
       usage: config.usage,
       isDefault: config.isDefault,
-      keyHint: maskSecret(dto.apiKey),
+      keyHint: dto.apiKey ? maskSecret(dto.apiKey) : '••••',
     };
   }
 
@@ -137,6 +151,7 @@ export class AiProviderConfigService {
       provider: chosen.provider,
       apiKey: decryptSecret(chosen.apiKeyEncrypted, this.encryptionSecret),
       model: chosen.model ?? DEFAULT_MODELS[chosen.provider],
+      baseUrl: chosen.baseUrl,
     };
   }
 }

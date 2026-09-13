@@ -47,7 +47,15 @@ import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.common.VinIconBadge
 
-private val PROVIDER_OPTIONS = listOf("anthropic" to "Anthropic (Claude)", "openai" to "OpenAI (GPT)", "google" to "Google (Gemini)")
+private val PROVIDER_OPTIONS = listOf(
+    "anthropic" to "Anthropic (Claude)",
+    "openai" to "OpenAI (GPT)",
+    "google" to "Google (Gemini)",
+    "mistral" to "Mistral (Pixtral)",
+    "openrouter" to "OpenRouter",
+    "deepseek" to "DeepSeek",
+    "ollama" to "Ollama (auto-hébergé)",
+)
 private val USAGE_OPTIONS = listOf(
     "both" to "Reconnaissance + accords",
     "recognition" to "Reconnaissance uniquement",
@@ -88,7 +96,7 @@ fun AiProviderSettingsScreen(
                         if (state.data.isEmpty()) {
                             Box(modifier = Modifier.fillMaxSize().padding(24.dp)) {
                                 Text(
-                                    "Aucun fournisseur IA configuré. Ajoute ta clé API Claude, GPT ou Gemini pour activer la reconnaissance d'étiquette et les accords mets-vin.",
+                                    "Aucun fournisseur IA configuré. Ajoute une clé API (ou un serveur Ollama auto-hébergé) pour activer la reconnaissance d'étiquette et les accords mets-vin.",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
@@ -111,7 +119,9 @@ fun AiProviderSettingsScreen(
             AddAiProviderDialog(
                 submitState = submitState,
                 onDismiss = { showAddDialog = false },
-                onConfirm = viewModel::upsert,
+                onConfirm = { provider, apiKey, model, baseUrl, usage, isDefault ->
+                    viewModel.upsert(provider, apiKey, model, baseUrl, usage, isDefault)
+                },
             )
         }
     }
@@ -132,10 +142,17 @@ private fun AiProviderCard(config: AiProviderConfigDto, onDelete: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text("Modèle : ${config.model}", style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        "Clé : ${config.keyHint}" + if (config.isDefault) " · par défaut" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    if (config.provider == "ollama") {
+                        Text(
+                            "Serveur : ${config.baseUrl ?: "?"}" + if (config.isDefault) " · par défaut" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    } else {
+                        Text(
+                            "Clé : ${config.keyHint}" + if (config.isDefault) " · par défaut" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     Text(
                         USAGE_OPTIONS.firstOrNull { it.first == config.usage }?.second ?: config.usage,
                         style = MaterialTheme.typography.bodySmall,
@@ -154,15 +171,17 @@ private fun AiProviderCard(config: AiProviderConfigDto, onDelete: () -> Unit) {
 private fun AddAiProviderDialog(
     submitState: UiState<Unit>?,
     onDismiss: () -> Unit,
-    onConfirm: (provider: String, apiKey: String, model: String?, usage: String, isDefault: Boolean) -> Unit,
+    onConfirm: (provider: String, apiKey: String, model: String?, baseUrl: String?, usage: String, isDefault: Boolean) -> Unit,
 ) {
     var provider by remember { mutableStateOf(PROVIDER_OPTIONS.first().first) }
     var providerMenuExpanded by remember { mutableStateOf(false) }
     var apiKey by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
+    var baseUrl by remember { mutableStateOf("") }
     var usage by remember { mutableStateOf(USAGE_OPTIONS.first().first) }
     var usageMenuExpanded by remember { mutableStateOf(false) }
     var isDefault by remember { mutableStateOf(true) }
+    val isOllama = provider == "ollama"
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -193,13 +212,31 @@ private fun AddAiProviderDialog(
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("Clé API") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (isOllama) {
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Adresse du serveur *") },
+                        placeholder = { Text("http://192.168.1.50:11434") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("Clé API (optionnel)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("Clé API") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 OutlinedTextField(
                     value = model,
                     onValueChange = { model = it },
@@ -244,9 +281,19 @@ private fun AddAiProviderDialog(
             }
         },
         confirmButton = {
+            val isValid = if (isOllama) baseUrl.isNotBlank() else apiKey.isNotBlank()
             TextButton(
-                onClick = { onConfirm(provider, apiKey.trim(), model.trim().ifBlank { null }, usage, isDefault) },
-                enabled = apiKey.isNotBlank() && submitState !is UiState.Loading,
+                onClick = {
+                    onConfirm(
+                        provider,
+                        apiKey.trim(),
+                        model.trim().ifBlank { null },
+                        baseUrl.trim().ifBlank { null },
+                        usage,
+                        isDefault,
+                    )
+                },
+                enabled = isValid && submitState !is UiState.Loading,
             ) {
                 if (submitState is UiState.Loading) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp))

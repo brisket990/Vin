@@ -16,10 +16,11 @@ class AiProviderRepository @Inject constructor(
         provider: String,
         apiKey: String,
         model: String? = null,
+        baseUrl: String? = null,
         usage: String? = null,
         isDefault: Boolean? = null,
     ): AiProviderConfigDto = aiProviderApi.upsert(
-        UpsertAiProviderConfigRequest(provider, apiKey, model, usage, isDefault),
+        UpsertAiProviderConfigRequest(provider, apiKey, model, baseUrl, usage, isDefault),
     )
 
     suspend fun remove(id: String) = aiProviderApi.remove(id)

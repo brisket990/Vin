@@ -43,13 +43,14 @@ class AiProviderSettingsViewModel @Inject constructor(
         provider: String,
         apiKey: String,
         model: String?,
+        baseUrl: String?,
         usage: String,
         isDefault: Boolean,
     ) {
         viewModelScope.launch {
             _submitState.value = UiState.Loading
             _submitState.value = try {
-                aiProviderRepository.upsert(provider, apiKey, model, usage, isDefault)
+                aiProviderRepository.upsert(provider, apiKey, model, baseUrl, usage, isDefault)
                 load()
                 UiState.Success(Unit)
             } catch (t: Throwable) {
