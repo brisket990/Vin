@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.ScanResultDto
+import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.data.repository.BottleRepository
+import com.xothiques.vin.data.repository.CellarRepository
 import com.xothiques.vin.data.repository.ScanRepository
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.toUserMessage
@@ -21,6 +23,7 @@ import javax.inject.Inject
 class ScanViewModel @Inject constructor(
     private val scanRepository: ScanRepository,
     private val bottleRepository: BottleRepository,
+    private val cellarRepository: CellarRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -31,6 +34,37 @@ class ScanViewModel @Inject constructor(
 
     private val _saveState = MutableStateFlow<UiState<Unit>?>(null)
     val saveState: StateFlow<UiState<Unit>?> = _saveState.asStateFlow()
+
+    private val _suggestions = MutableStateFlow<UiState<List<SuggestedLocationDto>>?>(null)
+    val suggestions: StateFlow<UiState<List<SuggestedLocationDto>>?> = _suggestions.asStateFlow()
+
+    /** Mirrors BottleFormViewModel.suggestLocations -- see its doc comment. */
+    fun suggestLocations(color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) {
+        viewModelScope.launch {
+            _suggestions.value = UiState.Loading
+            val unit = try {
+                cellarRepository.listUnits().firstOrNull()
+            } catch (t: Throwable) {
+                _suggestions.value = UiState.Error(t.toUserMessage())
+                return@launch
+            }
+            if (unit == null) {
+                _suggestions.value = UiState.Error("Crée d'abord une cave depuis l'onglet Cave.")
+                return@launch
+            }
+            _suggestions.value = try {
+                UiState.Success(
+                    cellarRepository.suggestLocation(unit.id, color, region, drinkFromYear, drinkUntilYear),
+                )
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
+            }
+        }
+    }
+
+    fun clearSuggestions() {
+        _suggestions.value = null
+    }
 
     fun scan(photoFile: File) {
         viewModelScope.launch {
@@ -47,6 +81,7 @@ class ScanViewModel @Inject constructor(
     fun retake() {
         _scanState.value = null
         _saveState.value = null
+        _suggestions.value = null
     }
 
     fun saveBottle(scanId: String, request: CreateBottleRequest) {

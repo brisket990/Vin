@@ -31,6 +31,18 @@ Choisis la ou les meilleures bouteilles de cette liste pour accompagner ce plat.
 "suggestedBottleIds" doit contenir uniquement des ids présents dans la liste ci-dessus, du plus au moins recommandé. "reasoning" est une explication concise en français de ce choix.`;
 }
 
+export function buildFoodPairingPrompt(bottle: PairingCandidateBottle): string {
+  return `Tu es un sommelier expert. Voici une bouteille de vin, au format JSON :
+${JSON.stringify(bottle, null, 2)}
+
+Propose les meilleurs accords mets-vin pour cette bouteille précise. Réponds UNIQUEMENT avec un objet JSON valide (rien d'autre), au format exact suivant :
+{
+  "suggestedDishes": string[],
+  "reasoning": string
+}
+"suggestedDishes" est une liste de 2 à 5 plats ou types de plats qui se marient bien avec ce vin, du plus au moins recommandé. "reasoning" est une explication concise en français de ces choix, tenant compte du cépage, de la région, de la couleur et du millésime.`;
+}
+
 /**
  * Extracts a JSON object from a model's text response. Models are
  * instructed to return raw JSON, but some wrap it in prose or a markdown

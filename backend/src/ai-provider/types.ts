@@ -36,6 +36,16 @@ export interface PairingResult {
   rawResponse: string;
 }
 
+export interface FoodPairingStructured {
+  suggestedDishes: string[];
+  reasoning: string;
+}
+
+export interface FoodPairingResult {
+  structured: FoodPairingStructured;
+  rawResponse: string;
+}
+
 export interface AIProviderClient {
   recognizeLabel(
     imageBase64: string,
@@ -45,4 +55,6 @@ export interface AIProviderClient {
     dish: string,
     candidates: PairingCandidateBottle[],
   ): Promise<PairingResult>;
+  /** Reverse of suggestPairing: given one specific bottle, suggest dishes that pair well with it. */
+  suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult>;
 }

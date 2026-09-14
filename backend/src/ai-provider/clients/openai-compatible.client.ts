@@ -1,11 +1,14 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   RECOGNITION_SYSTEM_PROMPT,
+  buildFoodPairingPrompt,
   buildPairingPrompt,
   extractJson,
 } from '../prompt.js';
 import type {
   AIProviderClient,
+  FoodPairingResult,
+  FoodPairingStructured,
   PairingCandidateBottle,
   PairingResult,
   PairingStructured,
@@ -92,5 +95,16 @@ export class OpenAiCompatibleClient implements AIProviderClient {
 
     const rawResponse = this.extractText(response);
     return { structured: extractJson<PairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult> {
+    const response = (await postJson(this.chatUrl, this.headers(), {
+      model: this.model,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildFoodPairingPrompt(bottle) }],
+    })) as ChatCompletionsResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<FoodPairingStructured>(rawResponse), rawResponse };
   }
 }

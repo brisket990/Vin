@@ -1,7 +1,5 @@
 package com.xothiques.vin.ui.bottle
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,9 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -22,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,9 +37,9 @@ import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
+import com.xothiques.vin.ui.common.LocationPicker
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
-import com.xothiques.vin.ui.theme.wineColorFor
 
 private val COLOR_OPTIONS = listOf(
     "red" to "Rouge",
@@ -320,65 +314,6 @@ private fun BottleFormContent(
         }
         TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
             Text("Annuler")
-        }
-    }
-}
-
-@Composable
-private fun LocationPicker(
-    locationId: String?,
-    color: String,
-    region: String,
-    drinkFromYear: Int?,
-    drinkUntilYear: Int?,
-    suggestions: UiState<List<SuggestedLocationDto>>?,
-    onRequestSuggestions: (color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) -> Unit,
-    onPick: (String) -> Unit,
-    onClear: () -> Unit,
-) {
-    Card(shape = MaterialTheme.shapes.large) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Emplacement en cave", style = MaterialTheme.typography.titleSmall)
-            Text(
-                if (locationId != null) "Casier sélectionné." else "Aucun casier choisi pour l'instant.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        onRequestSuggestions(color, region.ifBlank { null }, drinkFromYear, drinkUntilYear)
-                    },
-                ) { Text("Suggérer un emplacement") }
-                if (locationId != null) {
-                    TextButton(onClick = onClear) { Text("Retirer") }
-                }
-            }
-            when (suggestions) {
-                is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-                is UiState.Error -> Text(suggestions.message, color = MaterialTheme.colorScheme.error)
-                is UiState.Success -> {
-                    if (suggestions.data.isEmpty()) {
-                        Text("Aucun casier libre trouvé.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(suggestions.data, key = { it.locationId }) { suggestion ->
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            wineColorFor(color).copy(alpha = 0.15f),
-                                            RoundedCornerShape(8.dp),
-                                        )
-                                        .clickable { onPick(suggestion.locationId) }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                ) {
-                                    Text(suggestion.label, style = MaterialTheme.typography.labelLarge)
-                                }
-                            }
-                        }
-                    }
-                }
-                null -> Unit
-            }
         }
     }
 }

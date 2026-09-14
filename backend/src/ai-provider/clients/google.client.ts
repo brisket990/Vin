@@ -1,10 +1,13 @@
 import {
   RECOGNITION_SYSTEM_PROMPT,
+  buildFoodPairingPrompt,
   buildPairingPrompt,
   extractJson,
 } from '../prompt.js';
 import type {
   AIProviderClient,
+  FoodPairingResult,
+  FoodPairingStructured,
   PairingCandidateBottle,
   PairingResult,
   PairingStructured,
@@ -64,5 +67,14 @@ export class GoogleProviderClient implements AIProviderClient {
 
     const rawResponse = this.extractText(response);
     return { structured: extractJson<PairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult> {
+    const response = (await postJson(this.url(), {}, {
+      contents: [{ parts: [{ text: buildFoodPairingPrompt(bottle) }] }],
+    })) as GeminiResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<FoodPairingStructured>(rawResponse), rawResponse };
   }
 }

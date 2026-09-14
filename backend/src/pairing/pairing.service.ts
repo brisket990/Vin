@@ -97,4 +97,47 @@ export class PairingService {
     if (!result) throw new NotFoundException('Suggestion introuvable.');
     return result;
   }
+
+  /**
+   * Reverse of suggest(): given one specific bottle (rather than a dish),
+   * asks the AI directly what food pairs well with it. Stateless for now --
+   * unlike suggest() this isn't persisted, since it's a quick lookup rather
+   * than a decision the household is tracking.
+   */
+  async suggestForBottle(householdId: string, bottleId: string, provider?: string) {
+    const [bottle] = await this.db
+      .select()
+      .from(bottles)
+      .where(and(eq(bottles.id, bottleId), eq(bottles.householdId, householdId)))
+      .limit(1);
+
+    if (!bottle) throw new NotFoundException('Bouteille introuvable.');
+
+    const candidate: PairingCandidateBottle = {
+      id: bottle.id,
+      name: bottle.name,
+      producer: bottle.producer,
+      region: bottle.region,
+      color: bottle.color,
+      grapeVarieties: bottle.grapeVarieties,
+      vintage: bottle.vintage,
+      quantity: bottle.quantity,
+    };
+
+    const { provider: usedProvider, client } = await this.aiProviderService.getClientForUsage(
+      householdId,
+      'pairing',
+      provider,
+    );
+
+    const { structured, rawResponse } = await client.suggestFoodForBottle(candidate);
+
+    return {
+      bottleId: bottle.id,
+      provider: usedProvider,
+      suggestedDishes: structured.suggestedDishes ?? [],
+      reasoning: structured.reasoning,
+      rawResponse,
+    };
+  }
 }

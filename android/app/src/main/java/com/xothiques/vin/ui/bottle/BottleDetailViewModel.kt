@@ -4,7 +4,9 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xothiques.vin.data.remote.dto.BottleDto
+import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
 import com.xothiques.vin.data.repository.BottleRepository
+import com.xothiques.vin.data.repository.PairingRepository
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +19,7 @@ import javax.inject.Inject
 @HiltViewModel
 class BottleDetailViewModel @Inject constructor(
     private val bottleRepository: BottleRepository,
+    private val pairingRepository: PairingRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -30,6 +33,9 @@ class BottleDetailViewModel @Inject constructor(
 
     private val _deleteState = MutableStateFlow<UiState<Unit>?>(null)
     val deleteState: StateFlow<UiState<Unit>?> = _deleteState.asStateFlow()
+
+    private val _foodPairingState = MutableStateFlow<UiState<FoodPairingResultDto>?>(null)
+    val foodPairingState: StateFlow<UiState<FoodPairingResultDto>?> = _foodPairingState.asStateFlow()
 
     init {
         load()
@@ -61,6 +67,21 @@ class BottleDetailViewModel @Inject constructor(
                 UiState.Error(t.toUserMessage())
             }
         }
+    }
+
+    fun suggestFoodPairing() {
+        viewModelScope.launch {
+            _foodPairingState.value = UiState.Loading
+            _foodPairingState.value = try {
+                UiState.Success(pairingRepository.suggestForBottle(bottleId))
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
+            }
+        }
+    }
+
+    fun resetFoodPairingState() {
+        _foodPairingState.value = null
     }
 
     fun delete() {

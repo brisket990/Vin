@@ -21,3 +21,13 @@ data class PairingSuggestionDto(
     val createdAt: String,
     val suggestedBottles: List<BottleDto> = emptyList(),
 )
+
+/** Reverse of PairingSuggestionDto: given one bottle, dishes that pair well with it. Not persisted server-side. */
+@Serializable
+data class FoodPairingResultDto(
+    val bottleId: String,
+    val provider: String,
+    val suggestedDishes: List<String>,
+    val reasoning: String,
+    val rawResponse: String,
+)

@@ -32,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,12 +42,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.CellarLocationDto
 import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.ui.common.FullScreenError
@@ -68,6 +73,7 @@ fun CellarGridScreen(
     val unitsState by viewModel.unitsState.collectAsState()
     val selectedUnitId by viewModel.selectedUnitId.collectAsState()
     val createUnitState by viewModel.createUnitState.collectAsState()
+    val unassignedBottlesState by viewModel.unassignedBottlesState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(createUnitState) {
@@ -77,7 +83,22 @@ fun CellarGridScreen(
         }
     }
 
+    // Navigating to Scan/Ajouter des vins/Détail bouteille pushes a new
+    // back-stack entry on top of this one rather than recreating it, so this
+    // screen's ViewModel (and its cached lists) would otherwise go stale the
+    // moment a bottle is added, edited, or (re)located. Re-fetch whenever
+    // this destination comes back into view.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refresh()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val units = (unitsState as? UiState.Success)?.data.orEmpty()
+    val unassignedBottles = (unassignedBottlesState as? UiState.Success)?.data.orEmpty()
     val selectedUnit = units.firstOrNull { it.id == selectedUnitId } ?: units.firstOrNull()
     val occupied = selectedUnit?.locations?.count { it.bottle != null } ?: 0
     val totalCells = selectedUnit?.locations?.size ?: 0
@@ -109,6 +130,7 @@ fun CellarGridScreen(
                             CellarUnitContent(
                                 units = units,
                                 selectedUnit = selectedUnit,
+                                unassignedBottles = unassignedBottles,
                                 onSelectUnit = viewModel::selectUnit,
                                 onOpenBottle = onOpenBottle,
                                 onAddBottle = onAddBottle,
@@ -228,6 +250,7 @@ private val WINE_COLOR_LABELS = mapOf(
 private fun CellarUnitContent(
     units: List<CellarUnitDto>,
     selectedUnit: CellarUnitDto,
+    unassignedBottles: List<BottleDto>,
     onSelectUnit: (String) -> Unit,
     onOpenBottle: (String) -> Unit,
     onAddBottle: (String?) -> Unit,
@@ -306,6 +329,37 @@ private fun CellarUnitContent(
                         subtitle = "$count bouteille" + if (count > 1) "s" else "",
                         badgeColor = wineColorFor(color).copy(alpha = 0.18f),
                         badgeContentColor = wineColorFor(color),
+                    )
+                }
+            }
+        }
+
+        if (unassignedBottles.isNotEmpty()) {
+            Text(
+                "Bouteilles sans emplacement",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            Text(
+                "Ajoutées sans choisir de casier -- elles ne s'affichent pas dans la grille. Touche-en une pour lui assigner un emplacement.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            Column(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                unassignedBottles.forEach { bottle ->
+                    VinListRow(
+                        icon = Icons.Filled.WineBar,
+                        title = bottle.name,
+                        subtitle = listOfNotNull(bottle.producer, bottle.vintage?.toString())
+                            .joinToString(" · ")
+                            .ifBlank { "Quantité : ${bottle.quantity}" },
+                        badgeColor = wineColorFor(bottle.color).copy(alpha = 0.18f),
+                        badgeContentColor = wineColorFor(bottle.color),
+                        onClick = { onOpenBottle(bottle.id) },
                     )
                 }
             }

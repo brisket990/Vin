@@ -1,10 +1,13 @@
 import {
   RECOGNITION_SYSTEM_PROMPT,
+  buildFoodPairingPrompt,
   buildPairingPrompt,
   extractJson,
 } from '../prompt.js';
 import type {
   AIProviderClient,
+  FoodPairingResult,
+  FoodPairingStructured,
   PairingCandidateBottle,
   PairingResult,
   PairingStructured,
@@ -80,5 +83,18 @@ export class AnthropicProviderClient implements AIProviderClient {
 
     const rawResponse = this.extractText(response);
     return { structured: extractJson<PairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult> {
+    const response = (await postJson(API_URL, this.headers(), {
+      model: this.model,
+      max_tokens: 1024,
+      messages: [
+        { role: 'user', content: buildFoodPairingPrompt(bottle) },
+      ],
+    })) as AnthropicMessageResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<FoodPairingStructured>(rawResponse), rawResponse };
   }
 }

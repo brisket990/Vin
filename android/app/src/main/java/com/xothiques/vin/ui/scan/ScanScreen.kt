@@ -2,13 +2,18 @@ package com.xothiques.vin.ui.scan
 
 import android.Manifest
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,9 +25,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -31,6 +41,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -45,6 +56,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.KeyboardType
@@ -58,8 +70,10 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.ScanResultDto
+import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenLoading
+import com.xothiques.vin.ui.common.LocationPicker
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -89,6 +103,7 @@ fun ScanScreen(
 ) {
     val scanState by viewModel.scanState.collectAsState()
     val saveState by viewModel.saveState.collectAsState()
+    val locationSuggestions by viewModel.suggestions.collectAsState()
 
     LaunchedEffect(saveState) {
         if (saveState is UiState.Success) onSaved()
@@ -102,12 +117,21 @@ fun ScanScreen(
                     null -> CameraCaptureView(onCaptured = viewModel::scan)
                     is UiState.Loading -> FullScreenLoading()
                     is UiState.Error -> {
+                        // verticalScroll so a long provider error message
+                        // (e.g. the raw JSON body from an AI provider) is
+                        // never cut off at the bottom of the screen; the
+                        // SelectionContainer lets it be copy-pasted.
                         Column(
-                            modifier = Modifier.fillMaxSize().padding(24.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                                .verticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
                         ) {
-                            Text(state.message, color = MaterialTheme.colorScheme.error)
+                            SelectionContainer {
+                                Text(state.message, color = MaterialTheme.colorScheme.error)
+                            }
                             Button(onClick = viewModel::retake, modifier = Modifier.padding(top = 12.dp)) {
                                 Text("Reprendre une photo")
                             }
@@ -117,6 +141,9 @@ fun ScanScreen(
                         result = state.data,
                         saveState = saveState,
                         preselectedLocationId = viewModel.preselectedLocationId,
+                        locationSuggestions = locationSuggestions,
+                        onRequestLocationSuggestions = viewModel::suggestLocations,
+                        onClearLocationSuggestions = viewModel::clearSuggestions,
                         onRetake = viewModel::retake,
                         onSave = { request -> viewModel.saveBottle(state.data.id, request) },
                     )
@@ -132,12 +159,44 @@ private suspend fun Context.getCameraProvider(): ProcessCameraProvider =
         future.addListener({ cont.resume(future.get()) }, ContextCompat.getMainExecutor(this))
     }
 
+/**
+ * A gallery pick returns a content:// Uri, but the scan upload (and the
+ * camera capture path) both work with a plain java.io.File -- so copy the
+ * picked image into our own cache dir once, same as a fresh camera shot.
+ */
+private fun copyUriToCacheFile(context: Context, uri: Uri): File? = try {
+    val file = File(context.cacheDir, "scan_gallery_${System.currentTimeMillis()}.jpg")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        file.outputStream().use { output -> input.copyTo(output) }
+    }
+    if (file.exists() && file.length() > 0) file else null
+} catch (e: Exception) {
+    null
+}
+
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun CameraCaptureView(onCaptured: (File) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraPermissionState = rememberPermissionState(Manifest.permission.CAMERA)
+
+    // Lets the user pick an existing photo instead of taking a new one --
+    // handy for a label already photographed, or a photo someone else sent.
+    // PickVisualMedia uses the system Photo Picker (no storage permission
+    // needed) and falls back gracefully on older Android versions.
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val file = copyUriToCacheFile(context, uri)
+            if (file != null) {
+                onCaptured(file)
+            } else {
+                Toast.makeText(context, "Impossible de lire cette image.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         if (!cameraPermissionState.status.isGranted) {
@@ -159,6 +218,14 @@ private fun CameraCaptureView(onCaptured: (File) -> Unit) {
                 onClick = { cameraPermissionState.launchPermissionRequest() },
                 modifier = Modifier.padding(top = 12.dp),
             ) { Text("Autoriser l'appareil photo") }
+            TextButton(
+                onClick = {
+                    galleryLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                },
+                modifier = Modifier.padding(top = 4.dp),
+            ) { Text("Ou choisir une photo depuis la galerie") }
         }
         return
     }
@@ -180,6 +247,19 @@ private fun CameraCaptureView(onCaptured: (File) -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+        IconButton(
+            onClick = {
+                galleryLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(24.dp)
+                .background(Color.Black.copy(alpha = 0.4f), CircleShape),
+        ) {
+            Icon(Icons.Filled.PhotoLibrary, contentDescription = "Choisir depuis la galerie", tint = Color.White)
+        }
         FloatingActionButton(
             onClick = {
                 val photoFile = File(context.cacheDir, "scan_${System.currentTimeMillis()}.jpg")
@@ -253,6 +333,9 @@ private fun ScanResultReview(
     result: ScanResultDto,
     saveState: UiState<Unit>?,
     preselectedLocationId: String?,
+    locationSuggestions: UiState<List<SuggestedLocationDto>>?,
+    onRequestLocationSuggestions: (color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) -> Unit,
+    onClearLocationSuggestions: () -> Unit,
     onRetake: () -> Unit,
     onSave: (CreateBottleRequest) -> Unit,
 ) {
@@ -264,6 +347,8 @@ private fun ScanResultReview(
     var grapes by remember(result.id) { mutableStateOf(parsed.grapes) }
     var vintage by remember(result.id) { mutableStateOf(parsed.vintage) }
     var color by remember(result.id) { mutableStateOf(parsed.color.ifBlank { "red" }) }
+    var quantity by remember(result.id) { mutableStateOf("1") }
+    var locationId by remember(result.id) { mutableStateOf(preselectedLocationId) }
     var colorMenuExpanded by remember { mutableStateOf(false) }
     var rawExpanded by remember { mutableStateOf(false) }
 
@@ -358,13 +443,36 @@ private fun ScanResultReview(
             )
         }
         item {
-            OutlinedTextField(
-                value = vintage,
-                onValueChange = { vintage = it.filter(Char::isDigit) },
-                label = { Text("Millésime") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = vintage,
+                    onValueChange = { vintage = it.filter(Char::isDigit) },
+                    label = { Text("Millésime") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = quantity,
+                    onValueChange = { quantity = it.filter(Char::isDigit) },
+                    label = { Text("Nombre de bouteilles") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        item {
+            LocationPicker(
+                locationId = locationId,
+                color = color,
+                region = region,
+                drinkFromYear = null,
+                drinkUntilYear = null,
+                suggestions = locationSuggestions,
+                onRequestSuggestions = onRequestLocationSuggestions,
+                onPick = { locationId = it; onClearLocationSuggestions() },
+                onClear = { locationId = null },
             )
         }
         item {
@@ -379,7 +487,7 @@ private fun ScanResultReview(
             item { Text(saveState.message, color = MaterialTheme.colorScheme.error) }
         }
         item {
-            val isValid = name.isNotBlank()
+            val isValid = name.isNotBlank() && (quantity.toIntOrNull() ?: 0) > 0
             Button(
                 onClick = {
                     onSave(
@@ -392,8 +500,8 @@ private fun ScanResultReview(
                                 .ifEmpty { null },
                             vintage = vintage.toIntOrNull(),
                             color = color,
-                            quantity = 1,
-                            locationId = preselectedLocationId,
+                            quantity = quantity.toIntOrNull() ?: 1,
+                            locationId = locationId,
                             labelPhotoUrl = result.photoUrl,
                         ),
                     )
