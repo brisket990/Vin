@@ -26,7 +26,13 @@ Pour "tastingNose" : décris en une phrase les arômes attendus au nez (fruits, 
 Pour "tastingPalate" : décris en une phrase la bouche attendue (structure, tanins, acidité, corps, longueur).
 Pour "tastingSweetness" : un mot ou une courte expression sur le niveau de sucrosité (ex. "sec", "demi-sec", "moelleux", "liquoreux") adapté à la couleur/au style du vin.
 Ces trois champs sont une estimation de sommelier basée sur le style du vin, pas une dégustation réelle -- mets null uniquement si le style est vraiment indéterminable.
-Pour "notes" : rédige 2 à 3 phrases en français décrivant l'origine, le terroir et le style du vin (caractère, corps, potentiel de garde) pour enrichir sa fiche -- pas juste un résumé des autres champs.`;
+Pour "notes" : rédige 2 à 3 phrases en français décrivant l'origine, le terroir et le style du vin (caractère, corps, potentiel de garde) pour enrichir sa fiche -- pas juste un résumé des autres champs.
+
+Attention aux vins jaunes du Jura (appellations "Château-Chalon", "Côtes du Jura" mention "Vin Jaune", "Arbois" mention "Vin Jaune", "L'Étoile" mention "Vin Jaune") : réglementairement ce sont des vins blancs, donc "color" reste bien "white" -- MAIS ne les traite jamais comme un vin blanc générique. Repère les indices sur l'étiquette (mention "Vin Jaune", "sous voile", clavelin 62cl, "Château-Chalon", etc.) et si tu identifies un vin jaune :
+- mets impérativement "Vin Jaune" bien visible dans "appellation" (ex. "Château-Chalon" ou "Côtes du Jura - Vin Jaune"), jamais juste la région/appellation de base sans le préciser ;
+- dans "notes", nomme explicitement "vin jaune" et son élevage caractéristique sous voile de levures (au moins 6 ans et 3 mois en fût sans ouillage) -- ne le décris jamais comme un simple vin blanc sec ;
+- pour "tastingNose"/"tastingPalate", utilise les descripteurs typiques du vin jaune (noix, curry, épices, garrigue, le fameux "goût de jaune") plutôt que des descripteurs de vin blanc classique ;
+- pour "tastingSweetness", "sec" reste correct mais peut être précisé (ex. "sec, oxydatif").`;
 
 export function buildPairingPrompt(
   dish: string,
