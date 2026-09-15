@@ -98,7 +98,13 @@ private fun BottleFormContent(
     preselectedLocationId: String?,
     submitState: UiState<Unit>?,
     suggestions: UiState<List<SuggestedLocationDto>>?,
-    onRequestSuggestions: (color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) -> Unit,
+    onRequestSuggestions: (
+        color: String,
+        region: String?,
+        drinkFromYear: Int?,
+        drinkUntilYear: Int?,
+        quantity: Int?,
+    ) -> Unit,
     onClearSuggestions: () -> Unit,
     onSubmit: (CreateBottleRequest) -> Unit,
     onBack: () -> Unit,
@@ -117,6 +123,9 @@ private fun BottleFormContent(
     var drinkFromYear by remember { mutableStateOf(initial?.drinkFromYear?.toString().orEmpty()) }
     var drinkUntilYear by remember { mutableStateOf(initial?.drinkUntilYear?.toString().orEmpty()) }
     var notes by remember { mutableStateOf(initial?.notes.orEmpty()) }
+    var tastingNose by remember { mutableStateOf(initial?.tastingNose.orEmpty()) }
+    var tastingPalate by remember { mutableStateOf(initial?.tastingPalate.orEmpty()) }
+    var tastingSweetness by remember { mutableStateOf(initial?.tastingSweetness.orEmpty()) }
     var locationId by remember { mutableStateOf(initial?.locationId ?: preselectedLocationId) }
     var colorMenuExpanded by remember { mutableStateOf(false) }
 
@@ -261,16 +270,47 @@ private fun BottleFormContent(
                 )
             }
             item {
+                Text("Profil de dégustation", style = MaterialTheme.typography.titleSmall)
+            }
+            item {
+                OutlinedTextField(
+                    value = tastingNose,
+                    onValueChange = { tastingNose = it },
+                    label = { Text("Nez (arômes)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = tastingPalate,
+                    onValueChange = { tastingPalate = it },
+                    label = { Text("Bouche") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = tastingSweetness,
+                    onValueChange = { tastingSweetness = it },
+                    label = { Text("Sucrosité") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
                 LocationPicker(
                     locationId = locationId,
                     color = color,
                     region = region,
                     drinkFromYear = drinkFromYear.toIntOrNull(),
                     drinkUntilYear = drinkUntilYear.toIntOrNull(),
+                    quantity = quantity.toIntOrNull() ?: 1,
                     suggestions = suggestions,
                     onRequestSuggestions = onRequestSuggestions,
-                    onPick = { locationId = it; onClearSuggestions() },
-                    onClear = { locationId = null },
+                    onPick = { locationId = it },
+                    onClear = { locationId = null; onClearSuggestions() },
                 )
             }
             if (submitState is UiState.Error) {
@@ -300,6 +340,9 @@ private fun BottleFormContent(
                         drinkUntilYear = drinkUntilYear.toIntOrNull(),
                         locationId = locationId,
                         notes = notes.ifBlank { null },
+                        tastingNose = tastingNose.ifBlank { null },
+                        tastingPalate = tastingPalate.ifBlank { null },
+                        tastingSweetness = tastingSweetness.ifBlank { null },
                     ),
                 )
             },

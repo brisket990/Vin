@@ -44,7 +44,7 @@ export class OpenAiProviderClient implements AIProviderClient {
   ): Promise<RecognitionResult> {
     const response = (await postJson(API_URL, this.headers(), {
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: RECOGNITION_SYSTEM_PROMPT },
         {
@@ -69,7 +69,7 @@ export class OpenAiProviderClient implements AIProviderClient {
   ): Promise<PairingResult> {
     const response = (await postJson(API_URL, this.headers(), {
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: buildPairingPrompt(dish, candidates) }],
     })) as OpenAiChatResponse;
 

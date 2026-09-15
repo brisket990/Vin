@@ -39,7 +39,13 @@ class ScanViewModel @Inject constructor(
     val suggestions: StateFlow<UiState<List<SuggestedLocationDto>>?> = _suggestions.asStateFlow()
 
     /** Mirrors BottleFormViewModel.suggestLocations -- see its doc comment. */
-    fun suggestLocations(color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) {
+    fun suggestLocations(
+        color: String,
+        region: String?,
+        drinkFromYear: Int?,
+        drinkUntilYear: Int?,
+        quantity: Int? = null,
+    ) {
         viewModelScope.launch {
             _suggestions.value = UiState.Loading
             val unit = try {
@@ -54,7 +60,9 @@ class ScanViewModel @Inject constructor(
             }
             _suggestions.value = try {
                 UiState.Success(
-                    cellarRepository.suggestLocation(unit.id, color, region, drinkFromYear, drinkUntilYear),
+                    cellarRepository.suggestLocation(
+                        unit.id, color, region, drinkFromYear, drinkUntilYear, quantity,
+                    ),
                 )
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())
@@ -88,8 +96,10 @@ class ScanViewModel @Inject constructor(
         viewModelScope.launch {
             _saveState.value = UiState.Loading
             _saveState.value = try {
-                val bottle = bottleRepository.create(request)
-                scanRepository.linkBottle(scanId, bottle.id)
+                // Splits across consecutive casiers when quantity > 1 -- see
+                // BottleRepository.createExpandingLocations doc comment.
+                val bottles = bottleRepository.createExpandingLocations(request)
+                scanRepository.linkBottle(scanId, bottles.first().id)
                 UiState.Success(Unit)
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())

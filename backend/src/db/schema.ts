@@ -191,6 +191,12 @@ export const bottles = pgTable('bottles', {
   labelPhotoUrl: text('label_photo_url'),
   status: bottleStatusEnum('status').notNull().default('in_cellar'),
   notes: text('notes'),
+  // Sommelier-style tasting profile (nose/palate/sweetness), distinct from
+  // both `notes` (origin/style blurb) and the household's own tastingNotes
+  // (their personal rating/comment once they've actually drunk it).
+  tastingNose: text('tasting_nose'),
+  tastingPalate: text('tasting_palate'),
+  tastingSweetness: text('tasting_sweetness'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),

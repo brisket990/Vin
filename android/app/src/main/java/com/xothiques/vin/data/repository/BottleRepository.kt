@@ -22,8 +22,39 @@ data class BottleFilters(
 @Singleton
 class BottleRepository @Inject constructor(
     private val bottleApi: BottleApi,
+    private val cellarRepository: CellarRepository,
 ) {
     suspend fun create(request: CreateBottleRequest): BottleDto = bottleApi.create(request)
+
+    /**
+     * Creates a bottle, splitting it across consecutive free casiers when
+     * quantity > 1 and a starting location was chosen -- one physical
+     * bottle per slot (e.g. picking R1-C3 for 10 bottles fills roughly
+     * R1-C3 through R1-C12, skipping any already-occupied slot), instead of
+     * stacking all 10 behind a single location's quantity count. Returns
+     * every row created; the first is the "primary" one (e.g. to link a
+     * scan result to). If the unit runs out of free slots, any leftover
+     * quantity is created as a single unassigned row (shows up under
+     * "Bouteilles sans emplacement" in the cellar grid).
+     */
+    suspend fun createExpandingLocations(request: CreateBottleRequest): List<BottleDto> {
+        val quantity = request.quantity ?: 1
+        val locationId = request.locationId
+        if (quantity <= 1 || locationId == null) {
+            return listOf(bottleApi.create(request))
+        }
+
+        val freeLocations = cellarRepository.nextFreeLocations(locationId, quantity)
+        val created = mutableListOf<BottleDto>()
+        for (location in freeLocations) {
+            created += bottleApi.create(request.copy(quantity = 1, locationId = location.locationId))
+        }
+        val leftover = quantity - freeLocations.size
+        if (leftover > 0) {
+            created += bottleApi.create(request.copy(quantity = leftover, locationId = null))
+        }
+        return created
+    }
 
     suspend fun findAll(filters: BottleFilters = BottleFilters()): List<BottleDto> =
         bottleApi.findAll(

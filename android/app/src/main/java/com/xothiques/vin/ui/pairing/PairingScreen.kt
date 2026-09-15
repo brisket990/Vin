@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xothiques.vin.data.remote.dto.PairingCellarSuggestionDto
+import com.xothiques.vin.data.remote.dto.PairingShoppingSuggestionDto
 import com.xothiques.vin.data.remote.dto.PairingSuggestionDto
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
@@ -44,7 +47,12 @@ fun PairingScreen(viewModel: PairingViewModel = hiltViewModel()) {
             contentPadding = PaddingValues(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { VinHeader(title = "Accords mets-vin", subtitle = "Décris un plat, on te suggère une bouteille de ta cave") }
+            item {
+                VinHeader(
+                    title = "Accords mets-vin",
+                    subtitle = "Décris un plat : on te propose 3 bouteilles de ta cave et 3 idées à acheter, chacune notée",
+                )
+            }
             item {
                 OutlinedTextField(
                     value = dish,
@@ -130,16 +138,35 @@ private fun PairingResultCard(suggestion: PairingSuggestionDto, highlighted: Boo
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(suggestion.dishDescription, style = MaterialTheme.typography.titleSmall)
-            if (suggestion.suggestedBottles.isEmpty()) {
+
+            Text(
+                "Dans ta cave",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (suggestion.cellarSuggestions.isEmpty()) {
                 Text("Aucune bouteille correspondante trouvée en cave.", style = MaterialTheme.typography.bodySmall)
             } else {
-                suggestion.suggestedBottles.forEach { bottle ->
-                    Text(
-                        "• ${bottle.name}" + (bottle.vintage?.let { " ($it)" } ?: ""),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                suggestion.cellarSuggestions.forEach { cellarSuggestion ->
+                    CellarSuggestionRow(cellarSuggestion)
                 }
             }
+
+            HorizontalDivider()
+
+            Text(
+                "À acheter en magasin",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (suggestion.shoppingSuggestions.isEmpty()) {
+                Text("Aucune suggestion d'achat.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                suggestion.shoppingSuggestions.forEach { shoppingSuggestion ->
+                    ShoppingSuggestionRow(shoppingSuggestion)
+                }
+            }
+
             Text(
                 if (rawExpanded) suggestion.rawResponse else "Voir la réponse complète de l'IA",
                 style = MaterialTheme.typography.bodySmall,
@@ -148,4 +175,79 @@ private fun PairingResultCard(suggestion: PairingSuggestionDto, highlighted: Boo
             )
         }
     }
+}
+
+@Composable
+private fun CellarSuggestionRow(suggestion: PairingCellarSuggestionDto) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "• ${suggestion.bottle.name}" + (suggestion.bottle.vintage?.let { " ($it)" } ?: ""),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (suggestion.score != null) {
+                ScoreBadge(suggestion.score)
+            }
+        }
+        if (suggestion.reasoning.isNotBlank()) {
+            Text(
+                suggestion.reasoning,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShoppingSuggestionRow(suggestion: PairingShoppingSuggestionDto) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("• ${suggestion.name}", style = MaterialTheme.typography.bodyMedium)
+            if (suggestion.score != null) {
+                ScoreBadge(suggestion.score)
+            }
+        }
+        val details = listOfNotNull(
+            suggestion.region,
+            suggestion.grapeVarieties?.takeIf { it.isNotEmpty() }?.joinToString(", "),
+        ).joinToString(" • ")
+        if (details.isNotBlank()) {
+            Text(
+                details,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+        if (suggestion.reasoning.isNotBlank()) {
+            Text(
+                suggestion.reasoning,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScoreBadge(score: Double) {
+    val formatted = if (score == score.toInt().toDouble()) {
+        score.toInt().toString()
+    } else {
+        String.format("%.1f", score)
+    }
+    Text(
+        "$formatted/10",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
 }

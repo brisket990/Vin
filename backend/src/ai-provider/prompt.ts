@@ -10,9 +10,23 @@ Identifie les informations visibles ou déductibles et réponds UNIQUEMENT avec 
   "grapeVarieties": string[] | null,
   "vintage": number | null,
   "color": "red" | "white" | "rose" | "sparkling" | "sweet" | "fortified" | null,
+  "drinkFromYear": number | null,
+  "drinkUntilYear": number | null,
+  "foodPairings": string[] | null,
+  "tastingNose": string | null,
+  "tastingPalate": string | null,
+  "tastingSweetness": string | null,
   "confidence": "low" | "medium" | "high",
   "notes": string | null
-}`;
+}
+
+Pour "drinkFromYear" et "drinkUntilYear" : si le millésime est identifiable ou déductible, estime la fenêtre d'apogée (en années calendaires pleines, ex. 2026 et 2032) à partir du style du vin, de la région, du cépage et du millésime -- c'est une estimation de sommelier, mets null si vraiment impossible à évaluer (ex. millésime inconnu).
+Pour "foodPairings" : propose 2 à 4 accords mets-vin courts et concrets (ex. "fromages affinés", "poisson grillé", "viande rouge en sauce"), du plus au moins évident.
+Pour "tastingNose" : décris en une phrase les arômes attendus au nez (fruits, fleurs, épices, bois, etc.), typiques de ce style de vin/cépage/région/millésime.
+Pour "tastingPalate" : décris en une phrase la bouche attendue (structure, tanins, acidité, corps, longueur).
+Pour "tastingSweetness" : un mot ou une courte expression sur le niveau de sucrosité (ex. "sec", "demi-sec", "moelleux", "liquoreux") adapté à la couleur/au style du vin.
+Ces trois champs sont une estimation de sommelier basée sur le style du vin, pas une dégustation réelle -- mets null uniquement si le style est vraiment indéterminable.
+Pour "notes" : rédige 2 à 3 phrases en français décrivant l'origine, le terroir et le style du vin (caractère, corps, potentiel de garde) pour enrichir sa fiche -- pas juste un résumé des autres champs.`;
 
 export function buildPairingPrompt(
   dish: string,
@@ -20,15 +34,30 @@ export function buildPairingPrompt(
 ): string {
   return `Tu es un sommelier expert. La personne va manger : "${dish}".
 
-Voici, au format JSON, les bouteilles actuellement disponibles dans sa cave (n'en propose aucune autre que celles listées ici) :
+Voici, au format JSON, les bouteilles actuellement disponibles dans sa cave :
 ${JSON.stringify(candidates, null, 2)}
 
-Choisis la ou les meilleures bouteilles de cette liste pour accompagner ce plat. Réponds UNIQUEMENT avec un objet JSON valide (rien d'autre), au format exact suivant :
+Réponds en deux parties, UNIQUEMENT avec un objet JSON valide (rien d'autre, pas de texte ni de balises markdown autour), au format exact suivant :
 {
-  "suggestedBottleIds": string[],
-  "reasoning": string
+  "cellarSuggestions": [
+    { "bottleId": string, "score": number, "reasoning": string }
+  ],
+  "shoppingSuggestions": [
+    {
+      "name": string,
+      "color": "red" | "white" | "rose" | "sparkling" | "sweet" | "fortified",
+      "region": string | null,
+      "grapeVarieties": string[] | null,
+      "score": number,
+      "reasoning": string
+    }
+  ]
 }
-"suggestedBottleIds" doit contenir uniquement des ids présents dans la liste ci-dessus, du plus au moins recommandé. "reasoning" est une explication concise en français de ce choix.`;
+
+Pour "cellarSuggestions" : choisis jusqu'à 3 bouteilles PARMI CELLES LISTÉES CI-DESSUS UNIQUEMENT (aucun id inventé), classées de la meilleure à la moins bonne. S'il y a moins de 3 bouteilles vraiment pertinentes, n'en propose que le nombre pertinent (peut être 0 si rien ne convient).
+Pour "shoppingSuggestions" : indépendamment de la cave, propose jusqu'à 3 vins que la personne pourrait acheter en magasin pour ce plat -- décris chacun par son style/cépage/région typiques plutôt qu'une marque précise (ex. "Un Chablis, Chardonnay de Bourgogne"), classés de la meilleure à la moins bonne suggestion.
+Pour "score" (dans les deux listes) : une note de 1 à 10 reflétant la qualité de l'accord. Étale bien les notes pour montrer l'écart entre la meilleure suggestion et les suivantes (par exemple 9, 7, 6 plutôt que 8, 8, 8) -- ne mets jamais la même note à toutes les suggestions d'une même liste.
+"reasoning" est une explication concise en français, spécifique à cette bouteille ou ce vin précis (pas une explication générique répétée d'une suggestion à l'autre).`;
 }
 
 export function buildFoodPairingPrompt(bottle: PairingCandidateBottle): string {

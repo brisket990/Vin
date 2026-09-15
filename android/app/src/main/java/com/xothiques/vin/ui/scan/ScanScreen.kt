@@ -297,33 +297,54 @@ private data class ParsedScanFields(
     val grapes: String,
     val vintage: String,
     val color: String,
+    val drinkFromYear: String,
+    val drinkUntilYear: String,
+    val foodPairings: List<String>,
+    val tastingNose: String,
+    val tastingPalate: String,
+    val tastingSweetness: String,
     val confidence: String?,
+    val notes: String?,
 )
 
 /**
  * The backend's recognition prompt (see RECOGNITION_SYSTEM_PROMPT server-side)
  * always returns this exact shape: name/producer/region/appellation (string
  * or null), grapeVarieties (string[] or null), vintage (number or null),
- * color (enum or null), confidence, notes.
+ * color (enum or null), drinkFromYear/drinkUntilYear (number or null,
+ * sommelier's estimate of the drinking window), foodPairings (string[] or
+ * null), confidence, notes.
  */
 private fun parseStructuredFields(json: JsonObject): ParsedScanFields {
     fun str(key: String): String = (json[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
+    fun intStr(key: String): String =
+        (json[key] as? JsonPrimitive)?.let { it.intOrNull?.toString() ?: it.contentOrNull }.orEmpty()
     val grapes = (json["grapeVarieties"] as? JsonArray)
         ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
         ?.joinToString(", ")
         .orEmpty()
-    val vintage = (json["vintage"] as? JsonPrimitive)?.let { it.intOrNull?.toString() ?: it.contentOrNull }.orEmpty()
+    val foodPairings = (json["foodPairings"] as? JsonArray)
+        ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+        .orEmpty()
     val color = (json["color"] as? JsonPrimitive)?.contentOrNull.orEmpty()
     val confidence = (json["confidence"] as? JsonPrimitive)?.contentOrNull
+    val notes = (json["notes"] as? JsonPrimitive)?.contentOrNull
     return ParsedScanFields(
         name = str("name"),
         producer = str("producer"),
         region = str("region"),
         appellation = str("appellation"),
         grapes = grapes,
-        vintage = vintage,
+        vintage = intStr("vintage"),
         color = color,
+        drinkFromYear = intStr("drinkFromYear"),
+        drinkUntilYear = intStr("drinkUntilYear"),
+        foodPairings = foodPairings,
+        tastingNose = str("tastingNose"),
+        tastingPalate = str("tastingPalate"),
+        tastingSweetness = str("tastingSweetness"),
         confidence = confidence,
+        notes = notes,
     )
 }
 
@@ -334,7 +355,13 @@ private fun ScanResultReview(
     saveState: UiState<Unit>?,
     preselectedLocationId: String?,
     locationSuggestions: UiState<List<SuggestedLocationDto>>?,
-    onRequestLocationSuggestions: (color: String, region: String?, drinkFromYear: Int?, drinkUntilYear: Int?) -> Unit,
+    onRequestLocationSuggestions: (
+        color: String,
+        region: String?,
+        drinkFromYear: Int?,
+        drinkUntilYear: Int?,
+        quantity: Int?,
+    ) -> Unit,
     onClearLocationSuggestions: () -> Unit,
     onRetake: () -> Unit,
     onSave: (CreateBottleRequest) -> Unit,
@@ -348,6 +375,26 @@ private fun ScanResultReview(
     var vintage by remember(result.id) { mutableStateOf(parsed.vintage) }
     var color by remember(result.id) { mutableStateOf(parsed.color.ifBlank { "red" }) }
     var quantity by remember(result.id) { mutableStateOf("1") }
+    var drinkFromYear by remember(result.id) { mutableStateOf(parsed.drinkFromYear) }
+    var drinkUntilYear by remember(result.id) { mutableStateOf(parsed.drinkUntilYear) }
+    // Pre-fills with the AI's own description/origin blurb, plus its
+    // suggested food pairings appended so they actually end up saved on the
+    // bottle's fiche (Notes) instead of only flashing on this scan screen.
+    var notes by remember(result.id) {
+        mutableStateOf(
+            buildString {
+                if (!parsed.notes.isNullOrBlank()) append(parsed.notes.trim())
+                if (parsed.foodPairings.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n\n")
+                    append("Accords suggérés : ")
+                    append(parsed.foodPairings.joinToString(", "))
+                }
+            },
+        )
+    }
+    var tastingNose by remember(result.id) { mutableStateOf(parsed.tastingNose) }
+    var tastingPalate by remember(result.id) { mutableStateOf(parsed.tastingPalate) }
+    var tastingSweetness by remember(result.id) { mutableStateOf(parsed.tastingSweetness) }
     var locationId by remember(result.id) { mutableStateOf(preselectedLocationId) }
     var colorMenuExpanded by remember { mutableStateOf(false) }
     var rawExpanded by remember { mutableStateOf(false) }
@@ -463,16 +510,76 @@ private fun ScanResultReview(
             }
         }
         item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = drinkFromYear,
+                    onValueChange = { drinkFromYear = it.filter(Char::isDigit) },
+                    label = { Text("Boire à partir de") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = drinkUntilYear,
+                    onValueChange = { drinkUntilYear = it.filter(Char::isDigit) },
+                    label = { Text("Boire jusqu'à") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        item {
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes (origine, style, accords mets-vin...)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 3,
+            )
+        }
+        item {
+            Text("Profil de dégustation (IA)", style = MaterialTheme.typography.titleSmall)
+        }
+        item {
+            OutlinedTextField(
+                value = tastingNose,
+                onValueChange = { tastingNose = it },
+                label = { Text("Nez (arômes)") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = tastingPalate,
+                onValueChange = { tastingPalate = it },
+                label = { Text("Bouche") },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = tastingSweetness,
+                onValueChange = { tastingSweetness = it },
+                label = { Text("Sucrosité") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
             LocationPicker(
                 locationId = locationId,
                 color = color,
                 region = region,
-                drinkFromYear = null,
-                drinkUntilYear = null,
+                drinkFromYear = drinkFromYear.toIntOrNull(),
+                drinkUntilYear = drinkUntilYear.toIntOrNull(),
+                quantity = quantity.toIntOrNull() ?: 1,
                 suggestions = locationSuggestions,
                 onRequestSuggestions = onRequestLocationSuggestions,
-                onPick = { locationId = it; onClearLocationSuggestions() },
-                onClear = { locationId = null },
+                onPick = { locationId = it },
+                onClear = { locationId = null; onClearLocationSuggestions() },
             )
         }
         item {
@@ -501,8 +608,14 @@ private fun ScanResultReview(
                             vintage = vintage.toIntOrNull(),
                             color = color,
                             quantity = quantity.toIntOrNull() ?: 1,
+                            drinkFromYear = drinkFromYear.toIntOrNull(),
+                            drinkUntilYear = drinkUntilYear.toIntOrNull(),
                             locationId = locationId,
                             labelPhotoUrl = result.photoUrl,
+                            notes = notes.trim().ifBlank { null },
+                            tastingNose = tastingNose.trim().ifBlank { null },
+                            tastingPalate = tastingPalate.trim().ifBlank { null },
+                            tastingSweetness = tastingSweetness.trim().ifBlank { null },
                         ),
                     )
                 },

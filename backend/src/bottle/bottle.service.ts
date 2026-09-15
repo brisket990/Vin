@@ -78,6 +78,9 @@ export class BottleService {
         locationId: dto.locationId,
         labelPhotoUrl: dto.labelPhotoUrl,
         notes: dto.notes,
+        tastingNose: dto.tastingNose,
+        tastingPalate: dto.tastingPalate,
+        tastingSweetness: dto.tastingSweetness,
       })
       .returning();
 

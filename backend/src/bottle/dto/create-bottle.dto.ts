@@ -88,4 +88,16 @@ export class CreateBottleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  tastingNose?: string;
+
+  @IsOptional()
+  @IsString()
+  tastingPalate?: string;
+
+  @IsOptional()
+  @IsString()
+  tastingSweetness?: string;
 }

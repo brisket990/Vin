@@ -62,6 +62,37 @@ describe('CellarService.suggestLocations', () => {
     }
   });
 
+  it('best-fits a run of contiguous free slots to the requested quantity instead of splitting bottles up', async () => {
+    const { household } = await createTestHousehold(db, 'BestFit');
+    const unit = await cellarService.createUnit(household.id, {
+      name: 'Cave test',
+      rowCount: 1,
+      columnCount: 6,
+    });
+
+    const row1 = unit.locations.filter((l) => l.row === 1).sort((a, b) => a.column - b.column);
+    // Layout: [free] [bottle] [free] [free] [free] [bottle]
+    // -> a 1-slot gap at C1 and a 3-slot gap at C3-C5.
+    await bottleService.create(household.id, { name: 'A', color: 'red', locationId: row1[1].id });
+    await bottleService.create(household.id, { name: 'B', color: 'red', locationId: row1[5].id });
+
+    const single = await cellarService.suggestLocations(household.id, unit.id, {
+      color: 'red',
+      quantity: 1,
+    });
+    // A single bottle goes into the small gap, not the big one.
+    expect(single[0].locationId).toBe(row1[0].id);
+    expect(single[0].runLength).toBe(1);
+
+    const pair = await cellarService.suggestLocations(household.id, unit.id, {
+      color: 'red',
+      quantity: 2,
+    });
+    // Two bottles together go into the 3-slot gap (the 1-slot one can't fit them).
+    expect(pair[0].locationId).toBe(row1[2].id);
+    expect(pair[0].runLength).toBe(2);
+  });
+
   it('never suggests an already-occupied slot', async () => {
     const { household } = await createTestHousehold(db, 'Occupied');
     const unit = await cellarService.createUnit(household.id, {

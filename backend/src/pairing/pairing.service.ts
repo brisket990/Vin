@@ -4,12 +4,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
 import { bottles, pairingSuggestions } from '../db/schema.js';
 import { AiProviderService } from '../ai-provider/ai-provider.service.js';
-import type { PairingCandidateBottle } from '../ai-provider/types.js';
+import type {
+  PairingBottleScore,
+  PairingCandidateBottle,
+  PairingShoppingSuggestion,
+} from '../ai-provider/types.js';
 import type { CreatePairingDto } from './dto/create-pairing.dto.js';
+
+type BottleRow = typeof bottles.$inferSelect;
+type PairingRow = typeof pairingSuggestions.$inferSelect;
+
+const MAX_SUGGESTIONS = 3;
 
 @Injectable()
 export class PairingService {
@@ -55,8 +64,12 @@ export class PairingService {
     // Defensive filter: only keep ids the AI actually had available, in case
     // it hallucinates one that isn't in the cellar.
     const validIds = new Set(candidates.map((c) => c.id));
-    const suggestedBottleIds = (structured.suggestedBottleIds ?? []).filter((id) =>
-      validIds.has(id),
+    const cellarSuggestions = (structured.cellarSuggestions ?? [])
+      .filter((s) => validIds.has(s.bottleId))
+      .slice(0, MAX_SUGGESTIONS);
+    const shoppingSuggestions = (structured.shoppingSuggestions ?? []).slice(
+      0,
+      MAX_SUGGESTIONS,
     );
 
     const [saved] = await this.db
@@ -64,29 +77,30 @@ export class PairingService {
       .values({
         householdId,
         dishDescription: dto.dishDescription,
-        suggestedBottleIds,
+        suggestedBottleIds: cellarSuggestions.map((s) => s.bottleId),
         provider,
         rawResponse,
-        structuredFields: structured,
+        structuredFields: { cellarSuggestions, shoppingSuggestions },
       })
       .returning();
 
-    return {
-      ...saved,
-      suggestedBottles: candidates.filter((c) => suggestedBottleIds.includes(c.id)),
-    };
+    const bottlesById = new Map(candidates.map((b) => [b.id, b]));
+    return this.toResponse(saved, bottlesById);
   }
 
   async findAll(householdId: string) {
-    return this.db
+    const rows = await this.db
       .select()
       .from(pairingSuggestions)
       .where(eq(pairingSuggestions.householdId, householdId))
       .orderBy(desc(pairingSuggestions.createdAt));
+
+    const bottlesById = await this.loadReferencedBottles(householdId, rows);
+    return rows.map((row) => this.toResponse(row, bottlesById));
   }
 
   async findOne(householdId: string, id: string) {
-    const [result] = await this.db
+    const [row] = await this.db
       .select()
       .from(pairingSuggestions)
       .where(
@@ -94,8 +108,79 @@ export class PairingService {
       )
       .limit(1);
 
-    if (!result) throw new NotFoundException('Suggestion introuvable.');
-    return result;
+    if (!row) throw new NotFoundException('Suggestion introuvable.');
+
+    const bottlesById = await this.loadReferencedBottles(householdId, [row]);
+    return this.toResponse(row, bottlesById);
+  }
+
+  private async loadReferencedBottles(householdId: string, rows: PairingRow[]) {
+    const ids = new Set<string>();
+    for (const row of rows) {
+      for (const id of row.suggestedBottleIds ?? []) ids.add(id);
+    }
+    if (ids.size === 0) return new Map<string, BottleRow>();
+
+    const found = await this.db
+      .select()
+      .from(bottles)
+      .where(and(eq(bottles.householdId, householdId), inArray(bottles.id, Array.from(ids))));
+
+    return new Map(found.map((b) => [b.id, b]));
+  }
+
+  /**
+   * Normalizes a stored row into the shape the app renders: up to 3 cellar
+   * picks (each carrying the full bottle plus its score/reasoning) and up
+   * to 3 shopping suggestions. Falls back gracefully for rows saved before
+   * this shape existed (old { suggestedBottleIds, reasoning } structure --
+   * shown without a per-bottle score rather than dropped).
+   */
+  private toResponse(row: PairingRow, bottlesById: Map<string, BottleRow>) {
+    const structured = row.structuredFields as
+      | { cellarSuggestions?: PairingBottleScore[]; shoppingSuggestions?: PairingShoppingSuggestion[] }
+      | { reasoning?: string }
+      | null
+      | undefined;
+
+    const cellarSuggestionsRaw: PairingBottleScore[] = Array.isArray(
+      (structured as { cellarSuggestions?: PairingBottleScore[] })?.cellarSuggestions,
+    )
+      ? (structured as { cellarSuggestions: PairingBottleScore[] }).cellarSuggestions
+      : (row.suggestedBottleIds ?? []).map((bottleId) => ({
+          bottleId,
+          score: null as unknown as number,
+          reasoning: (structured as { reasoning?: string })?.reasoning ?? '',
+        }));
+
+    const cellarSuggestions = cellarSuggestionsRaw
+      .filter((s) => bottlesById.has(s.bottleId))
+      .slice(0, MAX_SUGGESTIONS)
+      .map((s) => ({
+        bottle: bottlesById.get(s.bottleId)!,
+        score: s.score ?? null,
+        reasoning: s.reasoning ?? '',
+      }));
+
+    const shoppingSuggestions = Array.isArray(
+      (structured as { shoppingSuggestions?: PairingShoppingSuggestion[] })?.shoppingSuggestions,
+    )
+      ? (structured as { shoppingSuggestions: PairingShoppingSuggestion[] }).shoppingSuggestions.slice(
+          0,
+          MAX_SUGGESTIONS,
+        )
+      : [];
+
+    return {
+      id: row.id,
+      householdId: row.householdId,
+      dishDescription: row.dishDescription,
+      provider: row.provider,
+      rawResponse: row.rawResponse,
+      createdAt: row.createdAt,
+      cellarSuggestions,
+      shoppingSuggestions,
+    };
   }
 
   /**

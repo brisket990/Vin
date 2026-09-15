@@ -208,6 +208,19 @@ private fun BottleDetailContent(
             Text(bottle.notes)
         }
 
+        if (!bottle.tastingNose.isNullOrBlank() || !bottle.tastingPalate.isNullOrBlank() ||
+            !bottle.tastingSweetness.isNullOrBlank()
+        ) {
+            Card(shape = MaterialTheme.shapes.large) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Profil de dégustation", style = MaterialTheme.typography.titleSmall)
+                    if (!bottle.tastingNose.isNullOrBlank()) InfoRow("Nez", bottle.tastingNose)
+                    if (!bottle.tastingPalate.isNullOrBlank()) InfoRow("Bouche", bottle.tastingPalate)
+                    if (!bottle.tastingSweetness.isNullOrBlank()) InfoRow("Sucrosité", bottle.tastingSweetness)
+                }
+            }
+        }
+
         if (bottle.status == "in_cellar") {
             OutlinedButton(
                 onClick = onSuggestFoodPairing,

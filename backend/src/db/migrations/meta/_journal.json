@@ -15,6 +15,13 @@
       "when": 1789288992017,
       "tag": "0001_fat_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789420984904,
+      "tag": "0002_add_bottle_tasting_profile",
+      "breakpoints": true
     }
   ]
 }
