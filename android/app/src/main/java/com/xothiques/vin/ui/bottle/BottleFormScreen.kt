@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.data.remote.dto.BottleDto
+import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.ui.common.FullScreenError
@@ -60,6 +61,7 @@ fun BottleFormScreen(
     val loadState by viewModel.loadState.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
+    val unitsState by viewModel.unitsState.collectAsState()
 
     LaunchedEffect(submitState) {
         if (submitState is UiState.Success) onSaved()
@@ -80,6 +82,7 @@ fun BottleFormScreen(
                         preselectedLocationId = viewModel.preselectedLocationId,
                         submitState = submitState,
                         suggestions = suggestions,
+                        unitsState = unitsState,
                         onRequestSuggestions = viewModel::suggestLocations,
                         onClearSuggestions = viewModel::clearSuggestions,
                         onSubmit = viewModel::submit,
@@ -98,6 +101,7 @@ private fun BottleFormContent(
     preselectedLocationId: String?,
     submitState: UiState<Unit>?,
     suggestions: UiState<List<SuggestedLocationDto>>?,
+    unitsState: UiState<List<CellarUnitDto>>,
     onRequestSuggestions: (
         color: String,
         region: String?,
@@ -307,6 +311,7 @@ private fun BottleFormContent(
                     drinkFromYear = drinkFromYear.toIntOrNull(),
                     drinkUntilYear = drinkUntilYear.toIntOrNull(),
                     quantity = quantity.toIntOrNull() ?: 1,
+                    unitsState = unitsState,
                     suggestions = suggestions,
                     onRequestSuggestions = onRequestSuggestions,
                     onPick = { locationId = it },

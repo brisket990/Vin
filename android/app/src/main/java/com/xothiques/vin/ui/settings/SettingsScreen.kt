@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.SmartToy
@@ -297,7 +300,10 @@ private fun SettingsContent(
     val clipboardManager = LocalClipboardManager.current
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Card(shape = MaterialTheme.shapes.large) {
@@ -415,6 +421,49 @@ private fun SettingsContent(
                 "Se déconnecter",
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+
+        AboutSection()
+    }
+}
+
+/** Version de l'app installée -- utile pour vérifier qu'un rebuild a bien
+ *  été installé, ou pour le signaler en cas de bug. */
+@Composable
+private fun AboutSection() {
+    val context = LocalContext.current
+    val (versionName, versionCode) = remember {
+        try {
+            val info = context.packageManager.getPackageInfo(context.packageName, 0)
+            val code = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                info.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                info.versionCode.toLong()
+            }
+            (info.versionName ?: "?") to code
+        } catch (e: Exception) {
+            "?" to 0L
+        }
+    }
+
+    Card(shape = MaterialTheme.shapes.large) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("À propos", style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+                "Vin",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                "Version $versionName (build $versionCode)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

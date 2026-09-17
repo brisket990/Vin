@@ -68,6 +68,7 @@ import coil.compose.AsyncImage
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.ScanResultDto
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
@@ -104,6 +105,7 @@ fun ScanScreen(
     val scanState by viewModel.scanState.collectAsState()
     val saveState by viewModel.saveState.collectAsState()
     val locationSuggestions by viewModel.suggestions.collectAsState()
+    val unitsState by viewModel.unitsState.collectAsState()
 
     LaunchedEffect(saveState) {
         if (saveState is UiState.Success) onSaved()
@@ -142,6 +144,7 @@ fun ScanScreen(
                         saveState = saveState,
                         preselectedLocationId = viewModel.preselectedLocationId,
                         locationSuggestions = locationSuggestions,
+                        unitsState = unitsState,
                         onRequestLocationSuggestions = viewModel::suggestLocations,
                         onClearLocationSuggestions = viewModel::clearSuggestions,
                         onRetake = viewModel::retake,
@@ -355,6 +358,7 @@ private fun ScanResultReview(
     saveState: UiState<Unit>?,
     preselectedLocationId: String?,
     locationSuggestions: UiState<List<SuggestedLocationDto>>?,
+    unitsState: UiState<List<CellarUnitDto>>,
     onRequestLocationSuggestions: (
         color: String,
         region: String?,
@@ -576,6 +580,7 @@ private fun ScanResultReview(
                 drinkFromYear = drinkFromYear.toIntOrNull(),
                 drinkUntilYear = drinkUntilYear.toIntOrNull(),
                 quantity = quantity.toIntOrNull() ?: 1,
+                unitsState = unitsState,
                 suggestions = locationSuggestions,
                 onRequestSuggestions = onRequestLocationSuggestions,
                 onPick = { locationId = it },

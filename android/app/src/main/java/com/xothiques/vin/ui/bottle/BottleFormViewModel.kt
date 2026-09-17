@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xothiques.vin.data.remote.dto.BottleDto
+import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import com.xothiques.vin.data.repository.BottleRepository
@@ -43,6 +44,12 @@ class BottleFormViewModel @Inject constructor(
     private val _suggestions = MutableStateFlow<UiState<List<SuggestedLocationDto>>?>(null)
     val suggestions: StateFlow<UiState<List<SuggestedLocationDto>>?> = _suggestions.asStateFlow()
 
+    // Full casier list (with their grids) so LocationPicker can offer an
+    // explicit "choisis un casier, puis une niche" flow instead of only the
+    // algorithm's top suggestions.
+    private val _unitsState = MutableStateFlow<UiState<List<CellarUnitDto>>>(UiState.Loading)
+    val unitsState: StateFlow<UiState<List<CellarUnitDto>>> = _unitsState.asStateFlow()
+
     init {
         if (isEditing) {
             viewModelScope.launch {
@@ -51,6 +58,17 @@ class BottleFormViewModel @Inject constructor(
                 } catch (t: Throwable) {
                     UiState.Error(t.toUserMessage())
                 }
+            }
+        }
+        loadUnits()
+    }
+
+    fun loadUnits() {
+        viewModelScope.launch {
+            _unitsState.value = try {
+                UiState.Success(cellarRepository.listUnits())
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
             }
         }
     }
@@ -71,13 +89,14 @@ class BottleFormViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _suggestions.value = UiState.Loading
-            val hasUnits = try {
-                cellarRepository.listUnits().isNotEmpty()
-            } catch (t: Throwable) {
-                _suggestions.value = UiState.Error(t.toUserMessage())
-                return@launch
-            }
-            if (!hasUnits) {
+            val units = (_unitsState.value as? UiState.Success)?.data
+                ?: try {
+                    cellarRepository.listUnits().also { _unitsState.value = UiState.Success(it) }
+                } catch (t: Throwable) {
+                    _suggestions.value = UiState.Error(t.toUserMessage())
+                    return@launch
+                }
+            if (units.isEmpty()) {
                 _suggestions.value = UiState.Error("Crée d'abord un casier depuis l'onglet Cave.")
                 return@launch
             }
