@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
@@ -368,13 +369,15 @@ private fun FoodPairingCard(state: UiState<FoodPairingResultDto>) {
 
 /**
  * Étiquette photo at the top of the bottle sheet -- when the bottle has none
- * (added by hand, or an old scan that predates label photos), shows a
- * generic bottle placeholder tinted by the wine's color instead of leaving a
- * blank gap.
+ * (added by hand, or an old scan that predates label photos), OR when it has
+ * one but the file can no longer be loaded (e.g. it was lost server-side),
+ * shows a generic bottle placeholder tinted by the wine's color instead of a
+ * blank gap or a broken-image icon.
  */
 @Composable
 private fun BottlePhoto(photoUrl: String?, color: String) {
     val shape = MaterialTheme.shapes.large
+    var loadFailed by remember(photoUrl) { mutableStateOf(false) }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -382,12 +385,13 @@ private fun BottlePhoto(photoUrl: String?, color: String) {
             .background(wineColorFor(color).copy(alpha = 0.12f), shape),
         contentAlignment = androidx.compose.ui.Alignment.Center,
     ) {
-        if (photoUrl != null) {
+        if (photoUrl != null && !loadFailed) {
             AsyncImage(
                 model = photoUrl,
                 contentDescription = "Étiquette",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
+                onState = { state -> loadFailed = state is AsyncImagePainter.State.Error },
             )
         } else {
             Icon(

@@ -52,4 +52,29 @@ Toutes les routes sauf `/health`, `/auth/register-household`, `/auth/join-househ
 
 ## Déploiement
 
-Voir `Dockerfile` (build multi-stage + migration au démarrage) et `docker-compose.yml`. Notes de déploiement Coolify détaillées à venir (voir la tâche dédiée dans le suivi de projet).
+Voir `Dockerfile` (build multi-stage + migration au démarrage) et `docker-compose.yml`.
+
+⚠️ **Stockage des photos d'étiquette (`STORAGE_DIR`) — À vérifier sur Coolify.** Le
+`Dockerfile` déclare `VOLUME /data/photos`, mais quand Coolify construit
+directement depuis le `Dockerfile` d'un dépôt Git (plutôt que via
+`docker-compose.yml`), il ne configure **ni la variable d'environnement
+`STORAGE_DIR` ni un volume persistant** tout seul -- ces deux réglages du
+`docker-compose.yml` ne servent qu'à `docker compose up` en local. Sans eux,
+`StorageService` écrit les photos dans `./data/photos`, résolu par rapport au
+répertoire de travail du conteneur (`/app`), qui est un stockage **éphémère** :
+chaque redéploiement (donc chaque `git push`) recrée le conteneur et efface
+silencieusement toutes les photos déjà scannées, même si la ligne de la
+bouteille en base garde son `labelPhotoUrl` (qui pointe alors vers un fichier
+qui n'existe plus).
+
+À faire une fois sur le service backend dans Coolify :
+1. Onglet **Environment Variables** : ajouter `STORAGE_DIR=/data/photos`.
+2. Onglet **Storages** (ou "Persistent Storage") : ajouter un volume avec
+   comme chemin de destination (**Destination Path**) `/data/photos` -- le
+   nom/chemin hôte proposé par défaut convient.
+3. Redéployer le service pour que les deux prennent effet.
+
+Les photos perdues avant cette correction ne sont pas récupérables (les
+fichiers ont été supprimés) -- il faut rescanner l'étiquette de ces
+bouteilles pour leur en donner une nouvelle. Une fois `STORAGE_DIR` pointé
+vers le volume persistant, les photos survivront aux redéploiements suivants.
