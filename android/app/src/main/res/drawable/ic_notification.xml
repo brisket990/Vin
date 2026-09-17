@@ -8,7 +8,7 @@
       Simple wine-glass silhouette for the status-bar notification icon.
       Android auto-tints/masks this to a flat white shape regardless of
       fillColor (notification icons must be a plain silhouette, not a
-      full-color image) -- see VinFirebaseMessagingService.
+      full-color image) - see VinFirebaseMessagingService.
     -->
     <path
         android:fillColor="#FF000000"
