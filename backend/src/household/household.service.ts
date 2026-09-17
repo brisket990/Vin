@@ -1,5 +1,12 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, eq, ne } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
 import { householdMembers, households, users } from '../db/schema.js';
 import { generateInviteCode } from '../common/util/invite-code.js';
@@ -156,6 +163,66 @@ export class HouseholdService {
       throw new NotFoundException('Foyer introuvable.');
     }
     return household;
+  }
+
+  /**
+   * Permanently deletes a household -- only its owner can, only while no
+   * other account is a member (deleting out from under someone else would
+   * either orphan their account or silently drop their only foyer, neither
+   * of which this offers a way to recover from), and never the caller's
+   * last remaining household (the app always needs one active foyer).
+   *
+   * `users.householdId` has an ON DELETE CASCADE straight to `households`
+   * (it's every user's *default* foyer at login) -- if this happens to be
+   * the caller's default, deleting the row as-is would cascade-delete the
+   * caller's own account. So this reassigns that column to a household the
+   * caller still belongs to *before* deleting, inside the same transaction.
+   *
+   * Returns the caller's fallback household (id + role) so the controller
+   * can reissue a token for it when the household just deleted was the
+   * one the caller's current JWT was scoped to.
+   */
+  async deleteHousehold(userId: string, householdId: string) {
+    const membership = await this.assertMembership(userId, householdId);
+    if (membership.role !== 'owner') {
+      throw new ForbiddenException('Seul le/la propriétaire peut supprimer ce foyer.');
+    }
+
+    const members = await this.db
+      .select({ userId: householdMembers.userId })
+      .from(householdMembers)
+      .where(eq(householdMembers.householdId, householdId));
+    if (members.some((m) => m.userId !== userId)) {
+      throw new BadRequestException(
+        "Ce foyer a d'autres membres -- ils doivent d'abord le quitter avant qu'il puisse être supprimé.",
+      );
+    }
+
+    const otherMemberships = await this.db
+      .select({ householdId: householdMembers.householdId, role: householdMembers.role })
+      .from(householdMembers)
+      .where(and(eq(householdMembers.userId, userId), ne(householdMembers.householdId, householdId)))
+      .limit(1);
+    const fallback = otherMemberships[0];
+    if (!fallback) {
+      throw new BadRequestException('Tu ne peux pas supprimer ton dernier foyer.');
+    }
+
+    await this.db.transaction(async (tx) => {
+      const [currentUser] = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (currentUser?.householdId === householdId) {
+        await tx
+          .update(users)
+          .set({ householdId: fallback.householdId, role: fallback.role })
+          .where(eq(users.id, userId));
+      }
+      // household_members, cellar units/locations, bottles, scan results,
+      // pairing suggestions, wishlist items and device tokens for this
+      // household all cascade-delete automatically (ON DELETE CASCADE).
+      await tx.delete(households).where(eq(households.id, householdId));
+    });
+
+    return fallback;
   }
 
   async regenerateInviteCode(householdId: string) {

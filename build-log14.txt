@@ -1,82 +1,9 @@
-=== build started 17/09/2026 14:11:10,39
+=== build started 17/09/2026 17:41:55,19
 Removing old extracted android folder if present ...
-Extracting vin-android-v23.zip ...
+Extracting vin-android-v26.zip ...
 local.properties:
 sdk.dir=C:/Users/G-BJN-5322658/android-sdk
 ANDROID_HOME=[C:\Users\G-BJN-5322658\android-sdk]
 JAVA_HOME=[C:\Users\G-BJN-5322658\jdk17]
 No Gradle daemons are running.
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.9/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
-Daemon will be stopped at the end of the build 
-> Task :app:preBuild UP-TO-DATE
-> Task :app:preDebugBuild UP-TO-DATE
-> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
-> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :app:generateDebugResValues
-> Task :app:checkDebugAarMetadata
-> Task :app:processDebugGoogleServices
-> Task :app:mapDebugSourceSetPaths
-> Task :app:generateDebugResources
-> Task :app:packageDebugResources
-> Task :app:createDebugCompatibleScreenManifests
-> Task :app:extractDeepLinksDebug
-> Task :app:parseDebugLocalResources
-> Task :app:mergeDebugResources
-> Task :app:processDebugMainManifest
-> Task :app:processDebugManifest
-> Task :app:javaPreCompileDebug
-> Task :app:mergeDebugShaders
-> Task :app:compileDebugShaders NO-SOURCE
-> Task :app:generateDebugAssets UP-TO-DATE
-> Task :app:mergeDebugAssets
-> Task :app:compressDebugAssets
-> Task :app:desugarDebugFileDependencies
-> Task :app:mergeDebugJniLibFolders
-> Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugNativeLibs
-> Task :app:processDebugManifestForPackage
-> Task :app:mergeLibDexDebug
-
-> Task :app:stripDebugDebugSymbols
-Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libdatastore_shared_counter.so, libimage_processing_util_jni.so, libsurface_util_jni.so.
-
-> Task :app:validateSigningDebug
-> Task :app:writeDebugAppMetadata
-> Task :app:writeDebugSigningConfigVersions
-> Task :app:processDebugResources
-> Task :app:mergeExtDexDebug
-> Task :app:kspDebugKotlin
-
-> Task :app:compileDebugKotlin
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/bottle/BottleFormScreen.kt:176:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/bottle/BottleListScreen.kt:64:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/cellar/CellarGridScreen.kt:110:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/cellar/CellarGridScreen.kt:133:46 'val Icons.Filled.FormatListBulleted: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.FormatListBulleted.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/cellar/CellarGridScreen.kt:269:33 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/dashboard/DashboardScreen.kt:55:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/scan/ScanScreen.kt:184:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/scan/ScanScreen.kt:454:41 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/settings/AiProviderSettingsScreen.kt:201:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/settings/AiProviderSettingsScreen.kt:257:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/settings/SettingsScreen.kt:419:31 'val Icons.Filled.Logout: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Logout.
-w: file:///C:/Users/G-BJN-5322658/Documents/Vin/android/app/src/main/java/com/xothiques/vin/ui/wishlist/WishlistScreen.kt:262:45 'fun Modifier.menuAnchor(): Modifier' is deprecated. Use overload that takes MenuAnchorType and enabled parameters.
-
-> Task :app:compileDebugJavaWithJavac
-> Task :app:hiltAggregateDepsDebug
-> Task :app:hiltJavaCompileDebug
-> Task :app:processDebugJavaRes
-> Task :app:mergeDebugJavaResource
-> Task :app:transformDebugClassesWithAsm
-> Task :app:dexBuilderDebug
-> Task :app:mergeDebugGlobalSynthetics
-> Task :app:mergeProjectDexDebug
-> Task :app:packageDebug
-> Task :app:createDebugApkListingFileRedirect
-> Task :app:assembleDebug
-
-BUILD SUCCESSFUL in 1m 9s
-41 actionable tasks: 41 executed
-        1 fichier(s) copi‚(s).
-APK_VERSION=1.11
-APK_COPIED_TO=C:\Users\G-BJN-5322658\Documents\Vin\vin 1.11.apk
-BUILD_SCRIPT_COMPLETE_9f3a1

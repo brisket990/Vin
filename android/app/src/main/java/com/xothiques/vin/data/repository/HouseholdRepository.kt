@@ -4,6 +4,7 @@ import com.xothiques.vin.data.local.SessionManager
 import com.xothiques.vin.data.remote.HouseholdApi
 import com.xothiques.vin.data.remote.dto.AuthResponseDto
 import com.xothiques.vin.data.remote.dto.CreateHouseholdRequest
+import com.xothiques.vin.data.remote.dto.DeleteHouseholdResponseDto
 import com.xothiques.vin.data.remote.dto.HouseholdDto
 import com.xothiques.vin.data.remote.dto.HouseholdSessionDto
 import com.xothiques.vin.data.remote.dto.HouseholdSummaryDto
@@ -51,6 +52,24 @@ class HouseholdRepository @Inject constructor(
     suspend fun switch(householdId: String): AuthResponseDto {
         val result = householdApi.switch(SwitchHouseholdRequest(householdId))
         sessionManager.updateActiveHousehold(result.accessToken, result.user.householdId, result.user.role)
+        return result
+    }
+
+    /** Permanently deletes a foyer -- owner only, only while solo in it, and
+     *  never the caller's last one (backend enforces all of this and returns
+     *  a clear French refusal message otherwise). When the deleted foyer was
+     *  the caller's active one, the backend already issued a token for the
+     *  fallback foyer it fell back to, so this replaces the app's stored
+     *  session the same way [switch] does. */
+    suspend fun delete(householdId: String): DeleteHouseholdResponseDto {
+        val result = householdApi.delete(householdId)
+        if (result.switched) {
+            val token = result.accessToken
+            val user = result.user
+            if (token != null && user != null) {
+                sessionManager.updateActiveHousehold(token, user.householdId, user.role)
+            }
+        }
         return result
     }
 

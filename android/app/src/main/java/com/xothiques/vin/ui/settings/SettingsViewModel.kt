@@ -49,6 +49,9 @@ class SettingsViewModel @Inject constructor(
     private val _joinHouseholdState = MutableStateFlow<UiState<Unit>?>(null)
     val joinHouseholdState: StateFlow<UiState<Unit>?> = _joinHouseholdState.asStateFlow()
 
+    private val _deleteHouseholdState = MutableStateFlow<UiState<Unit>?>(null)
+    val deleteHouseholdState: StateFlow<UiState<Unit>?> = _deleteHouseholdState.asStateFlow()
+
     init {
         load()
         loadHouseholds()
@@ -152,6 +155,28 @@ class SettingsViewModel @Inject constructor(
             _joinHouseholdState.value = UiState.Loading
             _joinHouseholdState.value = try {
                 householdRepository.joinByCode(inviteCode)
+                load()
+                loadHouseholds()
+                UiState.Success(Unit)
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
+            }
+        }
+    }
+
+    fun resetDeleteHouseholdState() {
+        _deleteHouseholdState.value = null
+    }
+
+    /** Permanently deletes a foyer. HouseholdRepository already replaces the
+     *  app's stored token if the deleted foyer was the active one, so this
+     *  just reloads both the active household and the switcher list -- the
+     *  same pattern as [createHousehold]/[joinHousehold]. */
+    fun deleteHousehold(householdId: String) {
+        viewModelScope.launch {
+            _deleteHouseholdState.value = UiState.Loading
+            _deleteHouseholdState.value = try {
+                householdRepository.delete(householdId)
                 load()
                 loadHouseholds()
                 UiState.Success(Unit)

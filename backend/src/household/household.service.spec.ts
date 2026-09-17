@@ -1,6 +1,8 @@
+import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 import { HouseholdService } from './household.service.js';
 import { createTestDb, createTestHousehold } from '../test-utils/test-db.js';
+import { households, users } from '../db/schema.js';
 
 describe('HouseholdService multi-household membership', () => {
   const { db, pool } = createTestDb();
@@ -62,5 +64,69 @@ describe('HouseholdService multi-household membership', () => {
     const withMembers = await householdService.getHousehold(household.id);
     const memberIds = withMembers.members.map((m) => m.id).sort();
     expect(memberIds).toEqual([owner.id, joiner.id].sort());
+  });
+
+  describe('deleteHousehold', () => {
+    it('lets a solo owner delete an additional household and falls back to another it belongs to', async () => {
+      const { user } = await createTestHousehold(db, 'Maison');
+      const appart = await householdService.createAdditional(user.id, 'Appartement');
+
+      const fallback = await householdService.deleteHousehold(user.id, appart.id);
+      expect(fallback.householdId).not.toBe(appart.id);
+
+      await expect(householdService.getHousehold(appart.id)).rejects.toThrow();
+      const mine = await householdService.listMine(user.id);
+      expect(mine.map((h) => h.id)).not.toContain(appart.id);
+    });
+
+    it("reassigns the caller's default household before deleting it, instead of cascading onto their own account", async () => {
+      const { user, household } = await createTestHousehold(db, 'Maison');
+      const appart = await householdService.createAdditional(user.id, 'Appartement');
+
+      // `household` (Maison) is this user's *default* household (users.household_id).
+      await householdService.deleteHousehold(user.id, household.id);
+
+      const [stillThere] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
+      expect(stillThere).toBeDefined();
+      expect(stillThere.householdId).toBe(appart.id);
+
+      const mine = await householdService.listMine(user.id);
+      expect(mine.map((h) => h.id)).toEqual([appart.id]);
+    });
+
+    it('refuses when the caller is not the owner', async () => {
+      const { household } = await createTestHousehold(db, 'Foyer partagé');
+      const { user: joiner } = await createTestHousehold(db, 'Autre foyer par défaut');
+      await householdService.joinByCode(joiner.id, household.inviteCode);
+
+      await expect(householdService.deleteHousehold(joiner.id, household.id)).rejects.toThrow();
+      // Untouched.
+      await expect(householdService.getHousehold(household.id)).resolves.toBeDefined();
+    });
+
+    it('refuses while another account is still a member', async () => {
+      const { user: owner, household } = await createTestHousehold(db, 'Foyer partagé');
+      await householdService.createAdditional(owner.id, 'Solo secondaire'); // gives the owner a fallback
+      const { user: joiner } = await createTestHousehold(db, 'Autre foyer par défaut');
+      await householdService.joinByCode(joiner.id, household.inviteCode);
+
+      await expect(householdService.deleteHousehold(owner.id, household.id)).rejects.toThrow();
+    });
+
+    it("refuses to delete the caller's last remaining household", async () => {
+      const { user, household } = await createTestHousehold(db, 'Seul foyer');
+      await expect(householdService.deleteHousehold(user.id, household.id)).rejects.toThrow();
+      await expect(householdService.getHousehold(household.id)).resolves.toBeDefined();
+    });
+
+    it('actually removes the household row (cascades), not just the membership', async () => {
+      const { user } = await createTestHousehold(db, 'Maison');
+      const appart = await householdService.createAdditional(user.id, 'Appartement');
+
+      await householdService.deleteHousehold(user.id, appart.id);
+
+      const [row] = await db.select().from(households).where(eq(households.id, appart.id)).limit(1);
+      expect(row).toBeUndefined();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { HouseholdService } from './household.service.js';
 import { AuthService } from '../auth/auth.service.js';
 import { UpdateHouseholdDto } from './dto/update-household.dto.js';
@@ -66,5 +66,25 @@ export class HouseholdController {
   async switch(@CurrentUser() user: AuthenticatedUser, @Body() dto: SwitchHouseholdDto) {
     const membership = await this.householdService.assertMembership(user.id, dto.householdId);
     return this.authService.issueTokenForHousehold(user.id, dto.householdId, membership.role);
+  }
+
+  /** Permanently deletes a foyer -- owner only, only while solo in it, and
+   *  never the caller's last one (see HouseholdService.deleteHousehold).
+   *  When the deleted foyer was the one the caller's current token is
+   *  scoped to, returns a fresh token for the fallback foyer so the app
+   *  can switch straight into it instead of being left with a dead token;
+   *  otherwise just confirms. */
+  @Delete(':id')
+  async remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const fallback = await this.householdService.deleteHousehold(user.id, id);
+    if (id === user.householdId) {
+      const session = await this.authService.issueTokenForHousehold(
+        user.id,
+        fallback.householdId,
+        fallback.role,
+      );
+      return { switched: true, ...session };
+    }
+    return { switched: false };
   }
 }

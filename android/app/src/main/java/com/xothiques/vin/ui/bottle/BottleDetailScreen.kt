@@ -16,12 +16,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Liquor
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +47,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
-import com.xothiques.vin.data.remote.dto.RecipeSuggestionResultDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
@@ -66,7 +67,6 @@ fun BottleDetailScreen(
     val consumeState by viewModel.consumeState.collectAsState()
     val deleteState by viewModel.deleteState.collectAsState()
     val foodPairingState by viewModel.foodPairingState.collectAsState()
-    val recipeState by viewModel.recipeState.collectAsState()
     val turnState by viewModel.turnState.collectAsState()
     var showConsumeDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -131,8 +131,6 @@ fun BottleDetailScreen(
                         onConsume = { showConsumeDialog = true },
                         foodPairingState = foodPairingState,
                         onSuggestFoodPairing = viewModel::suggestFoodPairing,
-                        recipeState = recipeState,
-                        onSuggestRecipe = viewModel::suggestRecipe,
                         turnState = turnState,
                         onTurn = viewModel::turn,
                     )
@@ -173,8 +171,6 @@ private fun BottleDetailContent(
     onConsume: () -> Unit,
     foodPairingState: UiState<FoodPairingResultDto>?,
     onSuggestFoodPairing: () -> Unit,
-    recipeState: UiState<RecipeSuggestionResultDto>?,
-    onSuggestRecipe: () -> Unit,
     turnState: UiState<Unit>?,
     onTurn: () -> Unit,
 ) {
@@ -185,15 +181,7 @@ private fun BottleDetailContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        val photoUrl = resolvePhotoUrl(bottle.labelPhotoUrl)
-        if (photoUrl != null) {
-            AsyncImage(
-                model = photoUrl,
-                contentDescription = "Étiquette",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().height(220.dp),
-            )
-        }
+        BottlePhoto(photoUrl = resolvePhotoUrl(bottle.labelPhotoUrl), color = bottle.color)
 
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Box(
@@ -242,12 +230,18 @@ private fun BottleDetailContent(
         if (!bottle.tastingNose.isNullOrBlank() || !bottle.tastingPalate.isNullOrBlank() ||
             !bottle.tastingSweetness.isNullOrBlank()
         ) {
+            val fields = listOfNotNull(
+                bottle.tastingNose?.takeIf { it.isNotBlank() }?.let { "Nez" to it },
+                bottle.tastingPalate?.takeIf { it.isNotBlank() }?.let { "Bouche" to it },
+                bottle.tastingSweetness?.takeIf { it.isNotBlank() }?.let { "Sucrosité" to it },
+            )
             Card(shape = MaterialTheme.shapes.large) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Profil de dégustation", style = MaterialTheme.typography.titleSmall)
-                    if (!bottle.tastingNose.isNullOrBlank()) InfoRow("Nez", bottle.tastingNose)
-                    if (!bottle.tastingPalate.isNullOrBlank()) InfoRow("Bouche", bottle.tastingPalate)
-                    if (!bottle.tastingSweetness.isNullOrBlank()) InfoRow("Sucrosité", bottle.tastingSweetness)
+                    fields.forEachIndexed { index, (label, value) ->
+                        if (index > 0) HorizontalDivider()
+                        TastingProfileField(label, value)
+                    }
                 }
             }
         }
@@ -272,24 +266,6 @@ private fun BottleDetailContent(
 
         if (foodPairingState != null) {
             FoodPairingCard(foodPairingState)
-        }
-
-        if (bottle.status == "in_cellar") {
-            OutlinedButton(
-                onClick = onSuggestRecipe,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = recipeState !is UiState.Loading,
-            ) {
-                if (recipeState is UiState.Loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                } else {
-                    Text("Suggérer une idée de recette pour cette bouteille")
-                }
-            }
-        }
-
-        if (recipeState != null) {
-            RecipeSuggestionCard(recipeState)
         }
 
         if (bottle.status == "in_cellar") {
@@ -390,36 +366,37 @@ private fun FoodPairingCard(state: UiState<FoodPairingResultDto>) {
     }
 }
 
+/**
+ * Étiquette photo at the top of the bottle sheet -- when the bottle has none
+ * (added by hand, or an old scan that predates label photos), shows a
+ * generic bottle placeholder tinted by the wine's color instead of leaving a
+ * blank gap.
+ */
 @Composable
-private fun RecipeSuggestionCard(state: UiState<RecipeSuggestionResultDto>) {
-    when (state) {
-        is UiState.Error -> {
-            Card(shape = MaterialTheme.shapes.large) {
-                Text(
-                    state.message,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+private fun BottlePhoto(photoUrl: String?, color: String) {
+    val shape = MaterialTheme.shapes.large
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .background(wineColorFor(color).copy(alpha = 0.12f), shape),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        if (photoUrl != null) {
+            AsyncImage(
+                model = photoUrl,
+                contentDescription = "Étiquette",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Icon(
+                Icons.Filled.Liquor,
+                contentDescription = "Pas de photo d'étiquette",
+                tint = wineColorFor(color).copy(alpha = 0.55f),
+                modifier = Modifier.size(72.dp),
+            )
         }
-        is UiState.Success -> {
-            Card(shape = MaterialTheme.shapes.large) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Idée de recette", style = MaterialTheme.typography.titleSmall)
-                    Text(state.data.recipeTitle, fontWeight = FontWeight.Bold)
-                    Text(state.data.recipeDescription, style = MaterialTheme.typography.bodyMedium)
-                    if (state.data.reasoning.isNotBlank()) {
-                        Text(
-                            state.data.reasoning,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                }
-            }
-        }
-        else -> Unit
     }
 }
 
@@ -428,6 +405,22 @@ private fun InfoRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
+/** One field of the tasting profile (Nez/Bouche/Sucrosité) -- label stacked
+ *  above its value rather than side by side, since the value is often a full
+ *  sentence or two and a side-by-side layout ran the label straight into it. */
+@Composable
+private fun TastingProfileField(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            label.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

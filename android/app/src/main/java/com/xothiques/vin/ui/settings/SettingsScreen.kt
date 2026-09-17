@@ -1,5 +1,8 @@
 package com.xothiques.vin.ui.settings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,11 +22,13 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,6 +62,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.data.local.Session
 import com.xothiques.vin.data.remote.dto.HouseholdDto
 import com.xothiques.vin.data.remote.dto.HouseholdSummaryDto
+import com.xothiques.vin.data.remote.dto.ImportCsvResultDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
@@ -71,21 +77,33 @@ fun SettingsScreen(
     onOpenAiProviderSettings: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
     exportViewModel: ExportViewModel = hiltViewModel(),
+    importViewModel: ImportViewModel = hiltViewModel(),
     themeViewModel: ThemeViewModel = hiltViewModel(),
 ) {
     val householdState by viewModel.householdState.collectAsState()
     val regenerateState by viewModel.regenerateState.collectAsState()
     val exportState by exportViewModel.exportState.collectAsState()
+    val importState by importViewModel.importState.collectAsState()
     val session by viewModel.session.collectAsState()
     val themeMode by themeViewModel.themeMode.collectAsState()
     val householdsState by viewModel.householdsState.collectAsState()
     val switchHouseholdState by viewModel.switchHouseholdState.collectAsState()
     val createHouseholdState by viewModel.createHouseholdState.collectAsState()
     val joinHouseholdState by viewModel.joinHouseholdState.collectAsState()
+    val deleteHouseholdState by viewModel.deleteHouseholdState.collectAsState()
     var showAddHouseholdChooser by remember { mutableStateOf(false) }
     var showCreateHouseholdDialog by remember { mutableStateOf(false) }
     var showJoinHouseholdDialog by remember { mutableStateOf(false) }
+    var pendingDeleteHousehold by remember { mutableStateOf<HouseholdSummaryDto?>(null) }
     val context = LocalContext.current
+
+    // Lets the user pick a .csv file from anywhere (Fichiers, Drive, etc.)
+    // to import -- the counterpart to the CSV export just below it.
+    val importCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri != null) importViewModel.importCsv(uri)
+    }
 
     LaunchedEffect(createHouseholdState) {
         if (createHouseholdState is UiState.Success) {
@@ -102,6 +120,12 @@ fun SettingsScreen(
     LaunchedEffect(switchHouseholdState) {
         if (switchHouseholdState is UiState.Success) {
             viewModel.resetSwitchHouseholdState()
+        }
+    }
+    LaunchedEffect(deleteHouseholdState) {
+        if (deleteHouseholdState is UiState.Success) {
+            viewModel.resetDeleteHouseholdState()
+            pendingDeleteHousehold = null
         }
     }
 
@@ -137,10 +161,22 @@ fun SettingsScreen(
                         exportState = exportState,
                         onSwitchHousehold = viewModel::switchHousehold,
                         onAddHousehold = { showAddHouseholdChooser = true },
+                        onDeleteHousehold = { pendingDeleteHousehold = it },
                         onRegenerateInviteCode = viewModel::regenerateInviteCode,
                         onOpenAiProviderSettings = onOpenAiProviderSettings,
                         onExportCsv = exportViewModel::exportCsv,
                         onExportPdf = exportViewModel::exportPdf,
+                        importState = importState,
+                        onImportCsv = {
+                            importCsvLauncher.launch(
+                                arrayOf(
+                                    "text/csv",
+                                    "text/comma-separated-values",
+                                    "application/vnd.ms-excel",
+                                    "*/*",
+                                ),
+                            )
+                        },
                         onSignOut = {
                             viewModel.signOut()
                             onSignedOut()
@@ -183,6 +219,25 @@ fun SettingsScreen(
                     viewModel.resetJoinHouseholdState()
                 },
                 onConfirm = viewModel::joinHousehold,
+            )
+        }
+
+        pendingDeleteHousehold?.let { target ->
+            DeleteHouseholdDialog(
+                household = target,
+                submitState = deleteHouseholdState,
+                onDismiss = {
+                    pendingDeleteHousehold = null
+                    viewModel.resetDeleteHouseholdState()
+                },
+                onConfirm = { viewModel.deleteHousehold(target.id) },
+            )
+        }
+
+        if (importState is UiState.Success || importState is UiState.Error) {
+            ImportResultDialog(
+                state = importState,
+                onDismiss = { importViewModel.resetImportState() },
             )
         }
     }
@@ -291,10 +346,13 @@ private fun SettingsContent(
     exportState: UiState<File>?,
     onSwitchHousehold: (String) -> Unit,
     onAddHousehold: () -> Unit,
+    onDeleteHousehold: (HouseholdSummaryDto) -> Unit,
     onRegenerateInviteCode: () -> Unit,
     onOpenAiProviderSettings: () -> Unit,
     onExportCsv: () -> Unit,
     onExportPdf: () -> Unit,
+    importState: UiState<ImportCsvResultDto>?,
+    onImportCsv: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -335,6 +393,11 @@ private fun SettingsContent(
                                 active = summary.id == household.id,
                                 enabled = switchHouseholdState !is UiState.Loading,
                                 onClick = { if (summary.id != household.id) onSwitchHousehold(summary.id) },
+                                onDelete = if (summary.role == "owner") {
+                                    { onDeleteHousehold(summary) }
+                                } else {
+                                    null
+                                },
                             )
                         }
                     }
@@ -412,6 +475,25 @@ private fun SettingsContent(
                         modifier = Modifier.weight(1f),
                     ) { Text("Export PDF") }
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Text(
+                    "Importe un fichier CSV (par exemple un export précédent) pour ajouter ses bouteilles à ta cave.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedButton(
+                    onClick = onImportCsv,
+                    enabled = importState !is UiState.Loading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (importState is UiState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    } else {
+                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("Importer un CSV", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
             }
         }
 
@@ -469,19 +551,22 @@ private fun AboutSection() {
     }
 }
 
-/** One row of the foyer switcher -- tap a non-active one to switch into it. */
+/** One row of the foyer switcher -- tap a non-active one to switch into it.
+ *  Owners additionally get a delete icon (null for a "member" row -- only an
+ *  owner may delete a foyer, enforced again on the backend). */
 @Composable
 private fun HouseholdRow(
     summary: HouseholdSummaryDto,
     active: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled && !active, onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -490,7 +575,7 @@ private fun HouseholdRow(
             contentDescription = null,
             tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
             Text(
                 summary.name,
                 style = MaterialTheme.typography.bodyLarge,
@@ -505,7 +590,110 @@ private fun HouseholdRow(
         if (active) {
             Icon(Icons.Filled.Check, contentDescription = "Foyer actif", tint = MaterialTheme.colorScheme.primary)
         }
+        if (onDelete != null) {
+            IconButton(onClick = onDelete, enabled = enabled) {
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "Supprimer ${summary.name}",
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
+}
+
+/** Confirms before permanently deleting a foyer -- the backend refuses (with
+ *  a clear French message surfaced here) when someone else is still a member
+ *  or when this is the caller's last remaining foyer. */
+@Composable
+private fun DeleteHouseholdDialog(
+    household: HouseholdSummaryDto,
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val loading = submitState is UiState.Loading
+    AlertDialog(
+        onDismissRequest = { if (!loading) onDismiss() },
+        title = { Text("Supprimer \"${household.name}\" ?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Cette action est définitive : le foyer, ses casiers et toutes ses bouteilles seront supprimés.",
+                )
+                if (submitState is UiState.Error) {
+                    Text(submitState.message, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = !loading) {
+                if (loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Supprimer", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !loading) { Text("Annuler") }
+        },
+    )
+}
+
+/** Summarizes the result of a CSV import -- how many bottles were added, how
+ *  many "consumed" rows were skipped on purpose, and any row that failed
+ *  validation (a handful of bad rows never blocks the rest of the file, see
+ *  ImportService on the backend). */
+@Composable
+private fun ImportResultDialog(
+    state: UiState<ImportCsvResultDto>?,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Import CSV") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
+                when (state) {
+                    is UiState.Success -> {
+                        val result = state.data
+                        Text("${result.imported} bouteille(s) importée(s).")
+                        if (result.skippedConsumed > 0) {
+                            Text(
+                                "${result.skippedConsumed} ligne(s) marquée(s) \"consommée\" ignorée(s).",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (result.errors.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                "${result.errors.size} ligne(s) ignorée(s) :",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            result.errors.forEach { error ->
+                                Text(
+                                    "Ligne ${error.row} — ${error.message}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                    is UiState.Error -> {
+                        Text(state.message, color = MaterialTheme.colorScheme.error)
+                    }
+                    else -> {}
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK") }
+        },
+    )
 }
 
 /** First step of adding a foyer -- choose between creating a brand new one

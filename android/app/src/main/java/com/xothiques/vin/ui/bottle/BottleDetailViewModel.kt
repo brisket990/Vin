@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
-import com.xothiques.vin.data.remote.dto.RecipeSuggestionResultDto
 import com.xothiques.vin.data.repository.BottleRepository
 import com.xothiques.vin.data.repository.PairingRepository
 import com.xothiques.vin.ui.common.UiState
@@ -37,9 +36,6 @@ class BottleDetailViewModel @Inject constructor(
 
     private val _foodPairingState = MutableStateFlow<UiState<FoodPairingResultDto>?>(null)
     val foodPairingState: StateFlow<UiState<FoodPairingResultDto>?> = _foodPairingState.asStateFlow()
-
-    private val _recipeState = MutableStateFlow<UiState<RecipeSuggestionResultDto>?>(null)
-    val recipeState: StateFlow<UiState<RecipeSuggestionResultDto>?> = _recipeState.asStateFlow()
 
     private val _turnState = MutableStateFlow<UiState<Unit>?>(null)
     val turnState: StateFlow<UiState<Unit>?> = _turnState.asStateFlow()
@@ -89,22 +85,6 @@ class BottleDetailViewModel @Inject constructor(
 
     fun resetFoodPairingState() {
         _foodPairingState.value = null
-    }
-
-    /** Same recipe idea the "apogée" push notification includes -- on-demand lookup, not persisted. */
-    fun suggestRecipe() {
-        viewModelScope.launch {
-            _recipeState.value = UiState.Loading
-            _recipeState.value = try {
-                UiState.Success(pairingRepository.suggestRecipeForBottle(bottleId))
-            } catch (t: Throwable) {
-                UiState.Error(t.toUserMessage())
-            }
-        }
-    }
-
-    fun resetRecipeState() {
-        _recipeState.value = null
     }
 
     /** "Quart de tour" reminder: marks the bottle as turned today. */

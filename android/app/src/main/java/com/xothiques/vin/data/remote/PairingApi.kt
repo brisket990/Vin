@@ -3,7 +3,6 @@ package com.xothiques.vin.data.remote
 import com.xothiques.vin.data.remote.dto.CreatePairingRequest
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
 import com.xothiques.vin.data.remote.dto.PairingSuggestionDto
-import com.xothiques.vin.data.remote.dto.RecipeSuggestionResultDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -19,12 +18,6 @@ interface PairingApi {
         @Path("bottleId") bottleId: String,
         @Query("provider") provider: String? = null,
     ): FoodPairingResultDto
-
-    @POST("api/vin/pairing/recipe-for-bottle/{bottleId}")
-    suspend fun suggestRecipeForBottle(
-        @Path("bottleId") bottleId: String,
-        @Query("provider") provider: String? = null,
-    ): RecipeSuggestionResultDto
 
     @GET("api/vin/pairing")
     suspend fun findAll(): List<PairingSuggestionDto>

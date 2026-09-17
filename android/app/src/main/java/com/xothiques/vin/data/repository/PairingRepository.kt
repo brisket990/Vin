@@ -4,7 +4,6 @@ import com.xothiques.vin.data.remote.PairingApi
 import com.xothiques.vin.data.remote.dto.CreatePairingRequest
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
 import com.xothiques.vin.data.remote.dto.PairingSuggestionDto
-import com.xothiques.vin.data.remote.dto.RecipeSuggestionResultDto
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,9 +16,6 @@ class PairingRepository @Inject constructor(
 
     suspend fun suggestForBottle(bottleId: String, provider: String? = null): FoodPairingResultDto =
         pairingApi.suggestForBottle(bottleId, provider)
-
-    suspend fun suggestRecipeForBottle(bottleId: String, provider: String? = null): RecipeSuggestionResultDto =
-        pairingApi.suggestRecipeForBottle(bottleId, provider)
 
     suspend fun findAll(): List<PairingSuggestionDto> = pairingApi.findAll()
 

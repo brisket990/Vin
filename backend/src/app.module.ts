@@ -16,6 +16,7 @@ import { TastingModule } from './tasting/tasting.module.js';
 import { WishlistModule } from './wishlist/wishlist.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { ExportModule } from './export/export.module.js';
+import { ImportModule } from './import/import.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
@@ -37,6 +38,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     WishlistModule,
     DashboardModule,
     ExportModule,
+    ImportModule,
     NotificationsModule,
   ],
   controllers: [AppController],
