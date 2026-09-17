@@ -1,11 +1,11 @@
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
 import { wineColorValues } from '../../db/schema.js';
 
 /**
- * Rename a unit and/or change its dedicated color after creation. Deliberately
- * doesn't allow resizing (rowCount/columnCount) -- the grid's slots already
- * exist and may hold bottles, so changing dimensions would need a real
- * migration strategy for existing locations, which isn't asked for here.
+ * Rename a unit, change its dedicated color, and/or resize its grid after
+ * creation. Resizing is handled by CellarService.updateUnit: growing adds
+ * the new slots, shrinking removes the slots that fall outside the new grid
+ * -- refused (BadRequestException) if any of them still holds a bottle.
  */
 export class UpdateCellarUnitDto {
   @IsOptional()
@@ -22,4 +22,16 @@ export class UpdateCellarUnitDto {
   @IsOptional()
   @IsIn([...wineColorValues, 'none'])
   preferredColor?: (typeof wineColorValues)[number] | 'none';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  rowCount?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  columnCount?: number;
 }

@@ -50,6 +50,20 @@
       "when": 1789639735570,
       "tag": "0006_add_cellar_sites",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789644745814,
+      "tag": "0007_add_household_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789644759709,
+      "tag": "0008_revert_cellar_sites",
+      "breakpoints": true
     }
   ]
 }

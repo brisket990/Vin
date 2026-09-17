@@ -14,9 +14,7 @@ describe('CellarService.suggestLocations', () => {
 
   it('creates a full grid of labelled, unoccupied locations', async () => {
     const { household } = await createTestHousehold(db, 'Grid');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave test',
       rowCount: 2,
       columnCount: 2,
@@ -34,9 +32,7 @@ describe('CellarService.suggestLocations', () => {
 
   it('favours slots in a row that already holds the same color/region, and more accessible rows when the bottle nears its drinking window', async () => {
     const { household } = await createTestHousehold(db, 'Suggest');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave test',
       rowCount: 3,
       columnCount: 3,
@@ -68,9 +64,7 @@ describe('CellarService.suggestLocations', () => {
 
   it('best-fits a run of contiguous free slots to the requested quantity instead of splitting bottles up', async () => {
     const { household } = await createTestHousehold(db, 'BestFit');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave test',
       rowCount: 1,
       columnCount: 6,
@@ -101,9 +95,7 @@ describe('CellarService.suggestLocations', () => {
 
   it('never suggests an already-occupied slot', async () => {
     const { household } = await createTestHousehold(db, 'Occupied');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Petite cave',
       rowCount: 1,
       columnCount: 1,
@@ -126,6 +118,7 @@ describe('CellarService.suggestLocations', () => {
 describe('CellarService.updateUnit', () => {
   const { db, pool } = createTestDb();
   const cellarService = new CellarService(db);
+  const bottleService = new BottleService(db);
 
   afterAll(async () => {
     await pool.end();
@@ -133,9 +126,7 @@ describe('CellarService.updateUnit', () => {
 
   it('sets and clears a unit\'s preferred color', async () => {
     const { household } = await createTestHousehold(db, 'UpdateUnit');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave test',
       rowCount: 1,
       columnCount: 1,
@@ -160,6 +151,75 @@ describe('CellarService.updateUnit', () => {
     });
     expect(cleared.preferredColor).toBeNull();
   });
+
+  it('grows a grid, adding only the new slots and keeping existing ones (and their bottles) untouched', async () => {
+    const { household } = await createTestHousehold(db, 'GrowUnit');
+    const unit = await cellarService.createUnit(household.id, {
+      name: 'Petite cave',
+      rowCount: 2,
+      columnCount: 2,
+    });
+    const original = unit.locations.find((l) => l.row === 1 && l.column === 1)!;
+    await bottleService.create(household.id, {
+      name: 'Toujours là',
+      color: 'red',
+      locationId: original.id,
+    });
+
+    const grown = await cellarService.updateUnit(household.id, unit.id, {
+      rowCount: 3,
+      columnCount: 4,
+    });
+
+    expect(grown.rowCount).toBe(3);
+    expect(grown.columnCount).toBe(4);
+    expect(grown.locations).toHaveLength(12);
+    const stillThere = grown.locations.find((l) => l.id === original.id);
+    expect(stillThere?.bottle?.color).toBe('red');
+  });
+
+  it('shrinks a grid, removing only the slots that fall outside the new size', async () => {
+    const { household } = await createTestHousehold(db, 'ShrinkUnit');
+    const unit = await cellarService.createUnit(household.id, {
+      name: 'Grande cave',
+      rowCount: 3,
+      columnCount: 3,
+    });
+
+    const shrunk = await cellarService.updateUnit(household.id, unit.id, {
+      rowCount: 2,
+      columnCount: 2,
+    });
+
+    expect(shrunk.rowCount).toBe(2);
+    expect(shrunk.columnCount).toBe(2);
+    expect(shrunk.locations).toHaveLength(4);
+    expect(shrunk.locations.every((l) => l.row <= 2 && l.column <= 2)).toBe(true);
+  });
+
+  it('refuses to shrink a grid if that would remove a slot still holding a bottle', async () => {
+    const { household } = await createTestHousehold(db, 'ShrinkOccupied');
+    const unit = await cellarService.createUnit(household.id, {
+      name: 'Cave test',
+      rowCount: 2,
+      columnCount: 2,
+    });
+    const doomed = unit.locations.find((l) => l.row === 2 && l.column === 2)!;
+    await bottleService.create(household.id, {
+      name: 'Coincée',
+      color: 'red',
+      locationId: doomed.id,
+    });
+
+    await expect(
+      cellarService.updateUnit(household.id, unit.id, { rowCount: 1, columnCount: 1 }),
+    ).rejects.toThrow();
+
+    // Nothing changed.
+    const unchanged = await cellarService.getUnit(household.id, unit.id);
+    expect(unchanged.rowCount).toBe(2);
+    expect(unchanged.locations).toHaveLength(4);
+  });
 });
 
 describe('CellarService.removeUnit', () => {
@@ -173,9 +233,7 @@ describe('CellarService.removeUnit', () => {
 
   it('deletes an empty unit', async () => {
     const { household } = await createTestHousehold(db, 'RemoveEmpty');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'À supprimer',
       rowCount: 1,
       columnCount: 1,
@@ -189,9 +247,7 @@ describe('CellarService.removeUnit', () => {
 
   it('refuses to delete a unit that still holds an in-cellar bottle', async () => {
     const { household } = await createTestHousehold(db, 'RemoveOccupied');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Occupé',
       rowCount: 1,
       columnCount: 1,
@@ -210,9 +266,7 @@ describe('CellarService.removeUnit', () => {
 
   it('allows deleting a unit once its bottle has been consumed', async () => {
     const { household, user } = await createTestHousehold(db, 'RemoveAfterConsume');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Bientôt vide',
       rowCount: 1,
       columnCount: 1,
@@ -231,45 +285,6 @@ describe('CellarService.removeUnit', () => {
   });
 });
 
-describe('CellarService sites', () => {
-  const { db, pool } = createTestDb();
-  const cellarService = new CellarService(db);
-
-  afterAll(async () => {
-    await pool.end();
-  });
-
-  it('creates, lists and renames sites for a household', async () => {
-    const { household } = await createTestHousehold(db, 'Sites');
-
-    const maison = await cellarService.createSite(household.id, { name: 'Maison' });
-    const appart = await cellarService.createSite(household.id, { name: 'Appartement' });
-
-    const sites = await cellarService.listSites(household.id);
-    expect(sites.map((s) => s.id).sort()).toEqual([maison.id, appart.id].sort());
-
-    const renamed = await cellarService.updateSite(household.id, appart.id, {
-      name: 'Appartement Paris',
-    });
-    expect(renamed.name).toBe('Appartement Paris');
-  });
-
-  it('rejects creating a unit under a site belonging to another household', async () => {
-    const { household: householdA } = await createTestHousehold(db, 'SiteCrossA');
-    const { household: householdB } = await createTestHousehold(db, 'SiteCrossB');
-    const siteB = await cellarService.createSite(householdB.id, { name: 'Cave B' });
-
-    await expect(
-      cellarService.createUnit(householdA.id, {
-        siteId: siteB.id,
-        name: 'Intrus',
-        rowCount: 1,
-        columnCount: 1,
-      }),
-    ).rejects.toThrow();
-  });
-});
-
 describe('CellarService.suggestAcrossUnits', () => {
   const { db, pool } = createTestDb();
   const cellarService = new CellarService(db);
@@ -281,16 +296,13 @@ describe('CellarService.suggestAcrossUnits', () => {
 
   it('strongly favours a unit whose preferredColor matches, even over better in-row affinity elsewhere', async () => {
     const { household } = await createTestHousehold(db, 'AcrossUnits');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const reds = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave rouges',
       rowCount: 1,
       columnCount: 2,
       preferredColor: 'red',
     });
     const whites = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave blancs',
       rowCount: 1,
       columnCount: 2,
@@ -308,7 +320,6 @@ describe('CellarService.suggestAcrossUnits', () => {
     });
 
     const suggestions = await cellarService.suggestAcrossUnits(household.id, {
-      siteId: site.id,
       color: 'red',
     });
 
@@ -318,23 +329,19 @@ describe('CellarService.suggestAcrossUnits', () => {
 
   it('avoids a mismatched dedicated unit while a mixed unit still competes normally', async () => {
     const { household } = await createTestHousehold(db, 'AcrossUnitsMixed');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const reds = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave rouges',
       rowCount: 1,
       columnCount: 1,
       preferredColor: 'red',
     });
     const mixed = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Cave mixte',
       rowCount: 1,
       columnCount: 1,
     });
 
     const suggestions = await cellarService.suggestAcrossUnits(household.id, {
-      siteId: site.id,
       color: 'white',
     });
 
@@ -346,9 +353,7 @@ describe('CellarService.suggestAcrossUnits', () => {
 
   it('returns nothing when every unit is full', async () => {
     const { household } = await createTestHousehold(db, 'AcrossUnitsFull');
-    const site = await cellarService.createSite(household.id, { name: 'Maison' });
     const unit = await cellarService.createUnit(household.id, {
-      siteId: site.id,
       name: 'Petite cave',
       rowCount: 1,
       columnCount: 1,
@@ -360,43 +365,8 @@ describe('CellarService.suggestAcrossUnits', () => {
     });
 
     const suggestions = await cellarService.suggestAcrossUnits(household.id, {
-      siteId: site.id,
       color: 'red',
     });
     expect(suggestions).toHaveLength(0);
-  });
-
-  it('never suggests a slot in a different site, even if that site has room', async () => {
-    const { household } = await createTestHousehold(db, 'AcrossSites');
-    const maison = await cellarService.createSite(household.id, { name: 'Maison' });
-    const appart = await cellarService.createSite(household.id, { name: 'Appartement' });
-
-    await cellarService.createUnit(household.id, {
-      siteId: maison.id,
-      name: 'Casier maison',
-      rowCount: 1,
-      columnCount: 1,
-    });
-    const appartUnit = await cellarService.createUnit(household.id, {
-      siteId: appart.id,
-      name: 'Casier appart',
-      rowCount: 1,
-      columnCount: 1,
-    });
-
-    const suggestions = await cellarService.suggestAcrossUnits(household.id, {
-      siteId: appart.id,
-      color: 'red',
-    });
-
-    expect(suggestions).toHaveLength(1);
-    expect(suggestions[0].unitId).toBe(appartUnit.id);
-  });
-
-  it('requires a siteId', async () => {
-    const { household } = await createTestHousehold(db, 'AcrossUnitsNoSite');
-    await expect(
-      cellarService.suggestAcrossUnits(household.id, { color: 'red' }),
-    ).rejects.toThrow();
   });
 });

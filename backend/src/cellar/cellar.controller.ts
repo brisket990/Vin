@@ -2,38 +2,10 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/commo
 import { CellarService } from './cellar.service.js';
 import { CreateCellarUnitDto } from './dto/create-cellar-unit.dto.js';
 import { UpdateCellarUnitDto } from './dto/update-cellar-unit.dto.js';
-import { CreateCellarSiteDto } from './dto/create-cellar-site.dto.js';
-import { UpdateCellarSiteDto } from './dto/update-cellar-site.dto.js';
 import { SuggestLocationDto } from './dto/suggest-location.dto.js';
 import { NextFreeLocationsDto } from './dto/next-free-locations.dto.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import type { AuthenticatedUser } from '../auth/types.js';
-
-/** Physical locations the household stores wine in (e.g. "Maison" /
- *  "Appartement") -- separate path prefix from cellar/units below. */
-@Controller('cellar/sites')
-export class CellarSitesController {
-  constructor(private readonly cellarService: CellarService) {}
-
-  @Get()
-  list(@CurrentUser() user: AuthenticatedUser) {
-    return this.cellarService.listSites(user.householdId);
-  }
-
-  @Post()
-  create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCellarSiteDto) {
-    return this.cellarService.createSite(user.householdId, dto);
-  }
-
-  @Patch(':id')
-  update(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-    @Body() dto: UpdateCellarSiteDto,
-  ) {
-    return this.cellarService.updateSite(user.householdId, id, dto);
-  }
-}
 
 @Controller('cellar/units')
 export class CellarController {

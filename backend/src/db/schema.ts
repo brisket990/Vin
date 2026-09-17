@@ -81,6 +81,11 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name').notNull(),
+  // The household a fresh login/JWT defaults to -- NOT the only household
+  // this user can access. A user can belong to several (see
+  // householdMembers below) and switch which one is "active" for a given
+  // JWT via POST /household/switch; this column just picks where a brand
+  // new session starts.
   householdId: uuid('household_id')
     .notNull()
     .references(() => households.id, { onDelete: 'cascade' }),
@@ -89,6 +94,35 @@ export const users = pgTable('users', {
     .defaultNow()
     .notNull(),
 });
+
+// A user can be a member of several households (e.g. "Maison" shared with a
+// partner, "Appartement" shared with a roommate) -- each with its own role.
+// users.householdId/role above stay in sync with the membership used at
+// registration and are only ever read as the *default* household for a
+// fresh login; every other household-scoped read/write in the app is
+// authorized against this table (see HouseholdService.assertMembership).
+export const householdMembers = pgTable(
+  'household_members',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id, { onDelete: 'cascade' }),
+    role: userRoleEnum('role').notNull().default('member'),
+    joinedAt: timestamp('joined_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('household_members_user_household_idx').on(
+      table.userId,
+      table.householdId,
+    ),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // AI provider configuration (BYOK, per household)
@@ -134,32 +168,17 @@ export const aiProviderConfigs = pgTable(
 // Cellar structure (grid of numbered slots)
 // ---------------------------------------------------------------------------
 
-// A physical location the household stores wine in (e.g. "Maison" /
-// "Appartement") -- a household always has at least one, auto-created for
-// existing households by the migration that introduced this table. Each
-// cellar unit (casier) belongs to exactly one site; the app scopes browsing
-// and location suggestions to one site at a time (see CellarService), since
-// suggesting a slot at a site the person isn't physically standing in front
-// of would be useless.
-export const cellarSites = pgTable('cellar_sites', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  householdId: uuid('household_id')
-    .notNull()
-    .references(() => households.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
-
+// A household can have several cellar units ("armoires") -- e.g. a red-wine
+// cabinet plus a white-wine one -- all shown together on one scrollable
+// page (see CellarUnitsContent), not switched between. Separate *physical
+// locations* (e.g. a house vs. an apartment) are handled one level up, as
+// separate households the same person can belong to (see householdMembers)
+// with their own invite code each -- not as a grouping inside one household.
 export const cellarUnits = pgTable('cellar_units', {
   id: uuid('id').defaultRandom().primaryKey(),
   householdId: uuid('household_id')
     .notNull()
     .references(() => households.id, { onDelete: 'cascade' }),
-  siteId: uuid('site_id')
-    .notNull()
-    .references(() => cellarSites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   rowCount: integer('row_count').notNull(),
   columnCount: integer('column_count').notNull(),
@@ -359,8 +378,8 @@ export const wishlistItems = pgTable('wishlist_items', {
 
 export const householdsRelations = relations(households, ({ many }) => ({
   users: many(users),
+  members: many(householdMembers),
   aiProviderConfigs: many(aiProviderConfigs),
-  cellarSites: many(cellarSites),
   cellarUnits: many(cellarUnits),
   bottles: many(bottles),
   pairingSuggestions: many(pairingSuggestions),
@@ -368,12 +387,15 @@ export const householdsRelations = relations(households, ({ many }) => ({
   deviceTokens: many(deviceTokens),
 }));
 
-export const cellarSitesRelations = relations(cellarSites, ({ one, many }) => ({
+export const householdMembersRelations = relations(householdMembers, ({ one }) => ({
+  user: one(users, {
+    fields: [householdMembers.userId],
+    references: [users.id],
+  }),
   household: one(households, {
-    fields: [cellarSites.householdId],
+    fields: [householdMembers.householdId],
     references: [households.id],
   }),
-  units: many(cellarUnits),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -381,6 +403,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     fields: [users.householdId],
     references: [households.id],
   }),
+  memberships: many(householdMembers),
   tastingNotes: many(tastingNotes),
   deviceTokens: many(deviceTokens),
 }));
@@ -402,10 +425,6 @@ export const cellarUnitsRelations = relations(
     household: one(households, {
       fields: [cellarUnits.householdId],
       references: [households.id],
-    }),
-    site: one(cellarSites, {
-      fields: [cellarUnits.siteId],
-      references: [cellarSites.id],
     }),
     locations: many(cellarLocations),
   }),

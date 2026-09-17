@@ -22,8 +22,6 @@ data class CellarOccupantDto(
 data class CellarUnitDto(
     val id: String,
     val householdId: String,
-    /** Which cave (physical location) this casier belongs to -- see CellarSiteDto. */
-    val siteId: String,
     val name: String,
     val rowCount: Int,
     val columnCount: Int,
@@ -37,31 +35,10 @@ data class CellarUnitDto(
 
 @Serializable
 data class CreateCellarUnitRequest(
-    val siteId: String,
     val name: String,
     val rowCount: Int,
     val columnCount: Int,
     val preferredColor: String? = null,
-)
-
-/** A physical location the household stores wine in (e.g. "Maison" /
- *  "Appartement") -- every casier belongs to exactly one. */
-@Serializable
-data class CellarSiteDto(
-    val id: String,
-    val householdId: String,
-    val name: String,
-    val createdAt: String,
-)
-
-@Serializable
-data class CreateCellarSiteRequest(
-    val name: String,
-)
-
-@Serializable
-data class UpdateCellarSiteRequest(
-    val name: String,
 )
 
 @Serializable
@@ -72,13 +49,15 @@ data class UpdateCellarUnitRequest(
      *  dropped by the app's JSON encoder (explicitNulls = false), which is
      *  why this is a sentinel string rather than an actual null. */
     val preferredColor: String? = null,
+    /** New grid dimensions -- growing adds empty slots, shrinking removes
+     *  the highest rows/columns (refused by the backend if any occupied
+     *  location would be deleted). Null leaves that dimension unchanged. */
+    val rowCount: Int? = null,
+    val columnCount: Int? = null,
 )
 
 @Serializable
 data class SuggestLocationRequest(
-    /** Required for the cross-unit suggestion (scopes it to one cave);
-     *  ignored by the single-unit endpoint. */
-    val siteId: String? = null,
     val color: String,
     val region: String? = null,
     val drinkFromYear: Int? = null,

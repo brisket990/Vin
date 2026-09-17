@@ -40,5 +40,11 @@ export async function createTestHousehold(
     })
     .returning();
 
+  await db.insert(schema.householdMembers).values({
+    userId: user.id,
+    householdId: household.id,
+    role: 'owner',
+  });
+
   return { household, user };
 }

@@ -1,6 +1,7 @@
 package com.xothiques.vin.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,12 +13,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,6 +39,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -43,6 +53,7 @@ import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xothiques.vin.data.local.Session
 import com.xothiques.vin.data.remote.dto.HouseholdDto
+import com.xothiques.vin.data.remote.dto.HouseholdSummaryDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
@@ -64,7 +75,32 @@ fun SettingsScreen(
     val exportState by exportViewModel.exportState.collectAsState()
     val session by viewModel.session.collectAsState()
     val themeMode by themeViewModel.themeMode.collectAsState()
+    val householdsState by viewModel.householdsState.collectAsState()
+    val switchHouseholdState by viewModel.switchHouseholdState.collectAsState()
+    val createHouseholdState by viewModel.createHouseholdState.collectAsState()
+    val joinHouseholdState by viewModel.joinHouseholdState.collectAsState()
+    var showAddHouseholdChooser by remember { mutableStateOf(false) }
+    var showCreateHouseholdDialog by remember { mutableStateOf(false) }
+    var showJoinHouseholdDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    LaunchedEffect(createHouseholdState) {
+        if (createHouseholdState is UiState.Success) {
+            viewModel.resetCreateHouseholdState()
+            showCreateHouseholdDialog = false
+        }
+    }
+    LaunchedEffect(joinHouseholdState) {
+        if (joinHouseholdState is UiState.Success) {
+            viewModel.resetJoinHouseholdState()
+            showJoinHouseholdDialog = false
+        }
+    }
+    LaunchedEffect(switchHouseholdState) {
+        if (switchHouseholdState is UiState.Success) {
+            viewModel.resetSwitchHouseholdState()
+        }
+    }
 
     LaunchedEffect(exportState) {
         val file = (exportState as? UiState.Success)?.data ?: return@LaunchedEffect
@@ -92,8 +128,12 @@ fun SettingsScreen(
                     is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::load)
                     is UiState.Success -> SettingsContent(
                         household = state.data,
+                        households = (householdsState as? UiState.Success)?.data.orEmpty(),
+                        switchHouseholdState = switchHouseholdState,
                         regenerateState = regenerateState,
                         exportState = exportState,
+                        onSwitchHousehold = viewModel::switchHousehold,
+                        onAddHousehold = { showAddHouseholdChooser = true },
                         onRegenerateInviteCode = viewModel::regenerateInviteCode,
                         onOpenAiProviderSettings = onOpenAiProviderSettings,
                         onExportCsv = exportViewModel::exportCsv,
@@ -105,6 +145,42 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+
+        if (showAddHouseholdChooser) {
+            AddHouseholdChooserDialog(
+                onDismiss = { showAddHouseholdChooser = false },
+                onCreateNew = {
+                    showAddHouseholdChooser = false
+                    showCreateHouseholdDialog = true
+                },
+                onJoinExisting = {
+                    showAddHouseholdChooser = false
+                    showJoinHouseholdDialog = true
+                },
+            )
+        }
+
+        if (showCreateHouseholdDialog) {
+            CreateHouseholdDialog(
+                submitState = createHouseholdState,
+                onDismiss = {
+                    showCreateHouseholdDialog = false
+                    viewModel.resetCreateHouseholdState()
+                },
+                onConfirm = viewModel::createHousehold,
+            )
+        }
+
+        if (showJoinHouseholdDialog) {
+            JoinHouseholdDialog(
+                submitState = joinHouseholdState,
+                onDismiss = {
+                    showJoinHouseholdDialog = false
+                    viewModel.resetJoinHouseholdState()
+                },
+                onConfirm = viewModel::joinHousehold,
+            )
         }
     }
 }
@@ -206,8 +282,12 @@ private fun ThemeModeChip(
 @Composable
 private fun SettingsContent(
     household: HouseholdDto,
+    households: List<HouseholdSummaryDto>,
+    switchHouseholdState: UiState<Unit>?,
     regenerateState: UiState<Unit>?,
     exportState: UiState<File>?,
+    onSwitchHousehold: (String) -> Unit,
+    onAddHousehold: () -> Unit,
     onRegenerateInviteCode: () -> Unit,
     onOpenAiProviderSettings: () -> Unit,
     onExportCsv: () -> Unit,
@@ -222,8 +302,42 @@ private fun SettingsContent(
     ) {
         Card(shape = MaterialTheme.shapes.large) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Foyer", style = MaterialTheme.typography.titleMedium)
-                Text(household.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Foyer", style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (switchHouseholdState is UiState.Loading) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(onClick = onAddHousehold) {
+                            Icon(Icons.Filled.Add, contentDescription = "Ajouter ou rejoindre un foyer")
+                        }
+                    }
+                }
+
+                // Every foyer this account belongs to -- tap one to switch,
+                // e.g. "Maison" vs "Appartement". Falls back to just the
+                // active household's name if the list hasn't loaded yet.
+                if (households.size > 1) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        households.forEach { summary ->
+                            HouseholdRow(
+                                summary = summary,
+                                active = summary.id == household.id,
+                                enabled = switchHouseholdState !is UiState.Loading,
+                                onClick = { if (summary.id != household.id) onSwitchHousehold(summary.id) },
+                            )
+                        }
+                    }
+                } else {
+                    Text(household.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                }
+                if (switchHouseholdState is UiState.Error) {
+                    Text(switchHouseholdState.message, color = MaterialTheme.colorScheme.error)
+                }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
@@ -304,4 +418,163 @@ private fun SettingsContent(
             )
         }
     }
+}
+
+/** One row of the foyer switcher -- tap a non-active one to switch into it. */
+@Composable
+private fun HouseholdRow(
+    summary: HouseholdSummaryDto,
+    active: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled && !active, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            Icons.Filled.Home,
+            contentDescription = null,
+            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                summary.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+            )
+            Text(
+                if (summary.role == "owner") "Propriétaire" else "Membre",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (active) {
+            Icon(Icons.Filled.Check, contentDescription = "Foyer actif", tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+/** First step of adding a foyer -- choose between creating a brand new one
+ *  or joining an existing one (someone else's) with its invite code. */
+@Composable
+private fun AddHouseholdChooserDialog(
+    onDismiss: () -> Unit,
+    onCreateNew: () -> Unit,
+    onJoinExisting: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ajouter un foyer") },
+        text = {
+            Text(
+                "Crée un nouveau foyer (par exemple \"Appartement\") pour y gérer une cave séparée, ou rejoins un foyer existant avec le code d'invitation de quelqu'un d'autre.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onCreateNew) { Text("Créer un nouveau foyer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onJoinExisting) { Text("Rejoindre avec un code") }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CreateHouseholdDialog(
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nouveau foyer") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom") },
+                    placeholder = { Text("Appartement") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Tu deviens propriétaire de ce foyer, avec son propre code d'invitation, ses propres membres et sa propre cave.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Créer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun JoinHouseholdDialog(
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: (inviteCode: String) -> Unit,
+) {
+    var code by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rejoindre un foyer") },
+        text = {
+            Column {
+                Text(
+                    "Avec le code d'invitation que quelqu'un d'autre t'a partagé -- utilise ce même compte pour basculer entre tes foyers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it.uppercase() },
+                    label = { Text("Code d'invitation") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (code.isNotBlank()) onConfirm(code.trim()) },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Rejoindre") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
 }

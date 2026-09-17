@@ -1,11 +1,9 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, or } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
-import { bottles, cellarLocations, cellarSites, cellarUnits } from '../db/schema.js';
+import { bottles, cellarLocations, cellarUnits } from '../db/schema.js';
 import type { CreateCellarUnitDto } from './dto/create-cellar-unit.dto.js';
 import type { UpdateCellarUnitDto } from './dto/update-cellar-unit.dto.js';
-import type { CreateCellarSiteDto } from './dto/create-cellar-site.dto.js';
-import type { UpdateCellarSiteDto } from './dto/update-cellar-site.dto.js';
 import type { SuggestLocationDto } from './dto/suggest-location.dto.js';
 
 interface Run {
@@ -38,48 +36,10 @@ export class CellarService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDb) {}
 
   // -------------------------------------------------------------------
-  // Sites (physical locations: "Maison", "Appartement", ...)
-  // -------------------------------------------------------------------
-
-  async listSites(householdId: string) {
-    return this.db
-      .select()
-      .from(cellarSites)
-      .where(eq(cellarSites.householdId, householdId))
-      .orderBy(cellarSites.createdAt);
-  }
-
-  async createSite(householdId: string, dto: CreateCellarSiteDto) {
-    const [site] = await this.db
-      .insert(cellarSites)
-      .values({ householdId, name: dto.name })
-      .returning();
-    return site;
-  }
-
-  private async getSiteOrThrow(householdId: string, siteId: string) {
-    const [site] = await this.db
-      .select()
-      .from(cellarSites)
-      .where(and(eq(cellarSites.id, siteId), eq(cellarSites.householdId, householdId)))
-      .limit(1);
-
-    if (!site) throw new NotFoundException('Cave introuvable.');
-    return site;
-  }
-
-  async updateSite(householdId: string, siteId: string, dto: UpdateCellarSiteDto) {
-    await this.getSiteOrThrow(householdId, siteId);
-    const [site] = await this.db
-      .update(cellarSites)
-      .set({ name: dto.name })
-      .where(eq(cellarSites.id, siteId))
-      .returning();
-    return site;
-  }
-
-  // -------------------------------------------------------------------
-  // Units (casiers)
+  // Units (casiers) -- a household can have several, all shown together on
+  // one page (see CellarUnitsContent client-side). Separate physical
+  // locations (house vs. apartment) are separate households instead --
+  // see the HouseholdService/household_members table.
   // -------------------------------------------------------------------
 
   async listUnits(householdId: string) {
@@ -160,14 +120,11 @@ export class CellarService {
    * (rowCount x columnCount), labelled "R{row}-C{column}".
    */
   async createUnit(householdId: string, dto: CreateCellarUnitDto) {
-    await this.getSiteOrThrow(householdId, dto.siteId);
-
     const unit = await this.db.transaction(async (tx) => {
       const [createdUnit] = await tx
         .insert(cellarUnits)
         .values({
           householdId,
-          siteId: dto.siteId,
           name: dto.name,
           rowCount: dto.rowCount,
           columnCount: dto.columnCount,
@@ -194,15 +151,91 @@ export class CellarService {
     return this.getUnit(householdId, unit.id);
   }
 
-  /** Renames a unit and/or changes its dedicated color (see the schema
-   *  comment on `preferredColor`); dimensions are immutable once created. */
+  /** Renames a unit, changes its dedicated color (see the schema comment on
+   *  `preferredColor`), and/or resizes its grid. Growing adds the new slots;
+   *  shrinking removes the slots that fall outside the new grid, but is
+   *  refused if any of them still holds an in-cellar bottle (move or drink
+   *  it first) so a bottle's location is never silently lost. */
   async updateUnit(householdId: string, unitId: string, dto: UpdateCellarUnitDto) {
-    await this.getUnitOrThrow(householdId, unitId);
+    const unit = await this.getUnitOrThrow(householdId, unitId);
 
     const updates: Partial<typeof cellarUnits.$inferInsert> = {};
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.preferredColor !== undefined) {
       updates.preferredColor = dto.preferredColor === 'none' ? null : dto.preferredColor;
+    }
+
+    const newRowCount = dto.rowCount ?? unit.rowCount;
+    const newColumnCount = dto.columnCount ?? unit.columnCount;
+    const dimensionsChanged =
+      newRowCount !== unit.rowCount || newColumnCount !== unit.columnCount;
+
+    if (dimensionsChanged) {
+      if (newRowCount < 1 || newColumnCount < 1) {
+        throw new BadRequestException('La grille doit avoir au moins 1 rangée et 1 colonne.');
+      }
+
+      await this.db.transaction(async (tx) => {
+        // Shrinking: remove the slots that fall outside the new grid,
+        // unless one of them still holds a bottle.
+        if (newRowCount < unit.rowCount || newColumnCount < unit.columnCount) {
+          const removed = await tx
+            .select({ id: cellarLocations.id })
+            .from(cellarLocations)
+            .where(
+              and(
+                eq(cellarLocations.unitId, unitId),
+                or(
+                  gt(cellarLocations.row, newRowCount),
+                  gt(cellarLocations.column, newColumnCount),
+                ),
+              ),
+            );
+
+          if (removed.length > 0) {
+            const removedIds = removed.map((l) => l.id);
+            const [occupant] = await tx
+              .select({ id: bottles.id })
+              .from(bottles)
+              .where(
+                and(inArray(bottles.locationId, removedIds), eq(bottles.status, 'in_cellar')),
+              )
+              .limit(1);
+
+            if (occupant) {
+              throw new BadRequestException(
+                'Réduire la grille supprimerait une case encore occupée -- déplace ou marque cette bouteille comme bue avant de réduire ce casier.',
+              );
+            }
+
+            await tx.delete(cellarLocations).where(inArray(cellarLocations.id, removedIds));
+          }
+        }
+
+        // Growing: add whichever (row, column) slots don't already exist.
+        if (newRowCount > unit.rowCount || newColumnCount > unit.columnCount) {
+          const existing = await tx
+            .select({ row: cellarLocations.row, column: cellarLocations.column })
+            .from(cellarLocations)
+            .where(eq(cellarLocations.unitId, unitId));
+          const existingSet = new Set(existing.map((l) => `${l.row}-${l.column}`));
+
+          const newSlots: (typeof cellarLocations.$inferInsert)[] = [];
+          for (let row = 1; row <= newRowCount; row++) {
+            for (let column = 1; column <= newColumnCount; column++) {
+              if (!existingSet.has(`${row}-${column}`)) {
+                newSlots.push({ unitId, row, column, label: `R${row}-C${column}` });
+              }
+            }
+          }
+          if (newSlots.length > 0) {
+            await tx.insert(cellarLocations).values(newSlots);
+          }
+        }
+
+        updates.rowCount = newRowCount;
+        updates.columnCount = newColumnCount;
+      });
     }
 
     if (Object.keys(updates).length > 0) {
@@ -386,29 +419,19 @@ export class CellarService {
 
   /**
    * Same placement logic as suggestLocations, but searches every cellar unit
-   * of `dto.siteId` at once and returns the best 3 slots overall -- used
-   * once a cave has more than one unit, so the caller doesn't have to pick
-   * a unit before asking where a bottle should go. Scoped to a single site
-   * (required, see SuggestLocationDto) rather than every unit the household
-   * owns across all its caves, since a slot at a cave the person isn't
-   * currently in front of wouldn't be useful. A unit with a `preferredColor`
-   * set is strongly favored when it matches `dto.color` and strongly avoided
-   * when it doesn't (see PREFERRED_COLOR_BONUS); a unit left "mixed" (no
-   * preferredColor) is ranked purely on in-row affinity, exactly as
-   * suggestLocations does for a single unit.
+   * of the household at once and returns the best 3 slots overall -- used
+   * once a household has more than one unit, so the caller doesn't have to
+   * pick a unit before asking where a bottle should go. A unit with a
+   * `preferredColor` set is strongly favored when it matches `dto.color`
+   * and strongly avoided when it doesn't (see PREFERRED_COLOR_BONUS); a unit
+   * left "mixed" (no preferredColor) is ranked purely on in-row affinity,
+   * exactly as suggestLocations does for a single unit.
    */
   async suggestAcrossUnits(householdId: string, dto: SuggestLocationDto) {
-    if (!dto.siteId) {
-      throw new BadRequestException(
-        "Choisis d'abord une cave -- la suggestion se limite aux casiers de la cave active.",
-      );
-    }
-    await this.getSiteOrThrow(householdId, dto.siteId);
-
     const units = await this.db
       .select()
       .from(cellarUnits)
-      .where(and(eq(cellarUnits.householdId, householdId), eq(cellarUnits.siteId, dto.siteId)));
+      .where(eq(cellarUnits.householdId, householdId));
 
     if (units.length === 0) return [];
 

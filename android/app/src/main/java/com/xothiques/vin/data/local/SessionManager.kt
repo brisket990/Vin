@@ -45,7 +45,6 @@ class SessionManager @Inject constructor(
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val EMAIL = stringPreferencesKey("email")
         val THEME_MODE = stringPreferencesKey("theme_mode")
-        val ACTIVE_SITE_ID = stringPreferencesKey("active_site_id")
     }
 
     val session: Flow<Session> = dataStore.data.map { prefs ->
@@ -102,13 +101,19 @@ class SessionManager @Inject constructor(
         dataStore.edit { it[Keys.THEME_MODE] = mode }
     }
 
-    /** Which cave (CellarSiteDto.id) is currently selected -- shared between
-     *  the cave screen's tab selector and the location-suggestion flows
-     *  (scan, add bottle) so they scope to the same site. Null until the
-     *  user has picked one (or before any site exists). */
-    val activeSiteId: Flow<String?> = dataStore.data.map { prefs -> prefs[Keys.ACTIVE_SITE_ID] }
-
-    suspend fun setActiveSiteId(siteId: String) {
-        dataStore.edit { it[Keys.ACTIVE_SITE_ID] = siteId }
+    /** Replaces the stored token/household/role after switching the active
+     *  foyer, creating an additional one, or joining one by invite code --
+     *  the counterpart to [signIn] that doesn't touch userId/displayName/
+     *  email since the account itself hasn't changed. */
+    suspend fun updateActiveHousehold(
+        accessToken: String,
+        householdId: String,
+        role: String,
+    ) {
+        dataStore.edit { prefs ->
+            prefs[Keys.ACCESS_TOKEN] = accessToken
+            prefs[Keys.HOUSEHOLD_ID] = householdId
+            prefs[Keys.ROLE] = role
+        }
     }
 }

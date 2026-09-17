@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
-import { households, users } from '../db/schema.js';
+import { householdMembers, households, users } from '../db/schema.js';
 import { generateInviteCode } from '../common/util/invite-code.js';
 import type { RegisterHouseholdDto } from './dto/register-household.dto.js';
 import type { JoinHouseholdDto } from './dto/join-household.dto.js';
@@ -49,6 +49,30 @@ export class AuthService {
       role: user.role,
     };
     return this.jwtService.sign(payload);
+  }
+
+  /** Issues a token scoped to a specific household for an already-known
+   *  user -- used by HouseholdService after switching the active household,
+   *  creating an additional one, or joining one by invite code while
+   *  already logged in. Trusts the caller to have already confirmed
+   *  membership (see HouseholdService.assertMembership). */
+  async issueTokenForHousehold(userId: string, householdId: string, role: 'owner' | 'member') {
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable.');
+    }
+
+    const authenticatedUser: AuthenticatedUser = {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      householdId,
+      role,
+    };
+    return {
+      accessToken: this.signToken(authenticatedUser),
+      user: authenticatedUser,
+    };
   }
 
   private async assertEmailAvailable(email: string) {
@@ -107,6 +131,12 @@ export class AuthService {
         })
         .returning();
 
+      await tx.insert(householdMembers).values({
+        userId: createdUser.id,
+        householdId: household.id,
+        role: 'owner',
+      });
+
       return createdUser;
     });
 
@@ -131,16 +161,26 @@ export class AuthService {
     await this.assertEmailAvailable(dto.email);
     const passwordHash = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
-    const [user] = await this.db
-      .insert(users)
-      .values({
-        email: dto.email,
-        passwordHash,
-        displayName: dto.displayName,
+    const user = await this.db.transaction(async (tx) => {
+      const [createdUser] = await tx
+        .insert(users)
+        .values({
+          email: dto.email,
+          passwordHash,
+          displayName: dto.displayName,
+          householdId: household.id,
+          role: 'member',
+        })
+        .returning();
+
+      await tx.insert(householdMembers).values({
+        userId: createdUser.id,
         householdId: household.id,
         role: 'member',
-      })
-      .returning();
+      });
+
+      return createdUser;
+    });
 
     const authenticatedUser = this.toAuthenticatedUser(user);
     return {

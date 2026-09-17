@@ -1,14 +1,11 @@
 package com.xothiques.vin.data.remote
 
-import com.xothiques.vin.data.remote.dto.CellarSiteDto
 import com.xothiques.vin.data.remote.dto.CellarUnitDto
-import com.xothiques.vin.data.remote.dto.CreateCellarSiteRequest
 import com.xothiques.vin.data.remote.dto.CreateCellarUnitRequest
 import com.xothiques.vin.data.remote.dto.NextFreeLocationDto
 import com.xothiques.vin.data.remote.dto.NextFreeLocationsRequest
 import com.xothiques.vin.data.remote.dto.SuggestLocationRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
-import com.xothiques.vin.data.remote.dto.UpdateCellarSiteRequest
 import com.xothiques.vin.data.remote.dto.UpdateCellarUnitRequest
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -18,18 +15,6 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 
 interface CellarApi {
-    @GET("api/vin/cellar/sites")
-    suspend fun listSites(): List<CellarSiteDto>
-
-    @POST("api/vin/cellar/sites")
-    suspend fun createSite(@Body body: CreateCellarSiteRequest): CellarSiteDto
-
-    @PATCH("api/vin/cellar/sites/{id}")
-    suspend fun updateSite(
-        @Path("id") id: String,
-        @Body body: UpdateCellarSiteRequest,
-    ): CellarSiteDto
-
     @GET("api/vin/cellar/units")
     suspend fun listUnits(): List<CellarUnitDto>
 
