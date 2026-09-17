@@ -43,4 +43,12 @@ interface BottleApi {
         @Path("id") id: String,
         @Body body: ConsumeBottleRequest,
     ): ConsumeBottleResponse
+
+    /** Every in-cellar bottle overdue for its "quart de tour" -- see BottleDto.lastTurnedAt. */
+    @GET("api/vin/bottles/needing-turn")
+    suspend fun findNeedingTurn(): List<BottleDto>
+
+    /** Marks the bottle as turned today, resetting the overdue baseline. */
+    @POST("api/vin/bottles/{id}/turn")
+    suspend fun turn(@Path("id") id: String): BottleDto
 }

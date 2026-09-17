@@ -3,6 +3,7 @@ package com.xothiques.vin.ui.scan
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xothiques.vin.data.local.SessionManager
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.ScanResultDto
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
@@ -15,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -24,6 +26,7 @@ class ScanViewModel @Inject constructor(
     private val scanRepository: ScanRepository,
     private val bottleRepository: BottleRepository,
     private val cellarRepository: CellarRepository,
+    private val sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -48,26 +51,50 @@ class ScanViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _suggestions.value = UiState.Loading
-            val unit = try {
-                cellarRepository.listUnits().firstOrNull()
+            val siteId = try {
+                resolveActiveSiteId()
             } catch (t: Throwable) {
                 _suggestions.value = UiState.Error(t.toUserMessage())
                 return@launch
             }
-            if (unit == null) {
-                _suggestions.value = UiState.Error("Crée d'abord une cave depuis l'onglet Cave.")
+            if (siteId == null) {
+                _suggestions.value = UiState.Error(
+                    "Choisis d'abord une cave dans l'onglet Cave -- la suggestion se limite à la cave active.",
+                )
+                return@launch
+            }
+            val hasUnits = try {
+                cellarRepository.listUnits().any { it.siteId == siteId }
+            } catch (t: Throwable) {
+                _suggestions.value = UiState.Error(t.toUserMessage())
+                return@launch
+            }
+            if (!hasUnits) {
+                _suggestions.value = UiState.Error("Crée d'abord un casier dans cette cave depuis l'onglet Cave.")
                 return@launch
             }
             _suggestions.value = try {
                 UiState.Success(
-                    cellarRepository.suggestLocation(
-                        unit.id, color, region, drinkFromYear, drinkUntilYear, quantity,
+                    cellarRepository.suggestLocationAcrossUnits(
+                        siteId = siteId,
+                        color = color,
+                        region = region,
+                        drinkFromYear = drinkFromYear,
+                        drinkUntilYear = drinkUntilYear,
+                        quantity = quantity,
                     ),
                 )
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())
             }
         }
+    }
+
+    /** See BottleFormViewModel.resolveActiveSiteId -- same fallback logic. */
+    private suspend fun resolveActiveSiteId(): String? {
+        sessionManager.activeSiteId.first()?.let { return it }
+        val sites = cellarRepository.listSites()
+        return sites.singleOrNull()?.id
     }
 
     fun clearSuggestions() {

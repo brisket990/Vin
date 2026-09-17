@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.WineBar
@@ -26,11 +26,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +58,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.CellarLocationDto
+import com.xothiques.vin.data.remote.dto.CellarSiteDto
 import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
@@ -73,16 +77,49 @@ fun CellarGridScreen(
     onOpenBottleList: () -> Unit,
     viewModel: CellarViewModel = hiltViewModel(),
 ) {
+    val sitesState by viewModel.sitesState.collectAsState()
+    val activeSiteId by viewModel.activeSiteId.collectAsState()
     val unitsState by viewModel.unitsState.collectAsState()
-    val selectedUnitId by viewModel.selectedUnitId.collectAsState()
     val createUnitState by viewModel.createUnitState.collectAsState()
+    val updateUnitState by viewModel.updateUnitState.collectAsState()
+    val deleteUnitState by viewModel.deleteUnitState.collectAsState()
+    val createSiteState by viewModel.createSiteState.collectAsState()
+    val renameSiteState by viewModel.renameSiteState.collectAsState()
     val unassignedBottlesState by viewModel.unassignedBottlesState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var editingUnit by remember { mutableStateOf<CellarUnitDto?>(null) }
+    var unitPendingDelete by remember { mutableStateOf<CellarUnitDto?>(null) }
+    var showCreateSiteDialog by remember { mutableStateOf(false) }
+    var renamingSite by remember { mutableStateOf<CellarSiteDto?>(null) }
 
     LaunchedEffect(createUnitState) {
         if (createUnitState is UiState.Success) {
             viewModel.resetCreateUnitState()
             showCreateDialog = false
+        }
+    }
+    LaunchedEffect(updateUnitState) {
+        if (updateUnitState is UiState.Success) {
+            viewModel.resetUpdateUnitState()
+            editingUnit = null
+        }
+    }
+    LaunchedEffect(deleteUnitState) {
+        if (deleteUnitState is UiState.Success) {
+            viewModel.resetDeleteUnitState()
+            unitPendingDelete = null
+        }
+    }
+    LaunchedEffect(createSiteState) {
+        if (createSiteState is UiState.Success) {
+            viewModel.resetCreateSiteState()
+            showCreateSiteDialog = false
+        }
+    }
+    LaunchedEffect(renameSiteState) {
+        if (renameSiteState is UiState.Success) {
+            viewModel.resetRenameSiteState()
+            renamingSite = null
         }
     }
 
@@ -100,17 +137,17 @@ fun CellarGridScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val sites = (sitesState as? UiState.Success)?.data.orEmpty()
     val units = (unitsState as? UiState.Success)?.data.orEmpty()
     val unassignedBottles = (unassignedBottlesState as? UiState.Success)?.data.orEmpty()
-    val selectedUnit = units.firstOrNull { it.id == selectedUnitId } ?: units.firstOrNull()
-    val occupied = selectedUnit?.locations?.count { it.bottle != null } ?: 0
-    val totalCells = selectedUnit?.locations?.size ?: 0
+    val occupied = units.sumOf { unit -> unit.locations.count { it.bottle != null } }
+    val totalCells = units.sumOf { it.locations.size }
 
     Scaffold { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             VinHeader(
                 title = "Ma cave",
-                subtitle = if (selectedUnit != null) "$occupied bouteilles rangées • $totalCells casiers" else null,
+                subtitle = if (units.isNotEmpty()) "$occupied bouteilles rangées • $totalCells casiers" else null,
                 trailing = {
                     Row {
                         IconButton(onClick = onOpenBottleList) {
@@ -119,6 +156,15 @@ fun CellarGridScreen(
                                 contentDescription = "Voir la liste des bouteilles",
                                 tint = MaterialTheme.colorScheme.onPrimary,
                             )
+                        }
+                        if (units.isNotEmpty()) {
+                            IconButton(onClick = { showCreateDialog = true }) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "Ajouter un casier",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
                         }
                         IconButton(onClick = onScan) {
                             Icon(
@@ -131,22 +177,34 @@ fun CellarGridScreen(
                 },
             )
 
+            if (sites.isNotEmpty()) {
+                SiteTabsRow(
+                    sites = sites,
+                    activeSiteId = activeSiteId,
+                    onSelect = viewModel::selectSite,
+                    onRenameActive = { site -> renamingSite = site },
+                    onAddSite = { showCreateSiteDialog = true },
+                )
+            }
+
             Box(modifier = Modifier.fillMaxSize()) {
                 when (val state = unitsState) {
                     is UiState.Loading -> FullScreenLoading()
                     is UiState.Error -> FullScreenError(state.message, onRetry = viewModel::loadUnits)
                     is UiState.Success -> {
-                        if (units.isEmpty()) {
+                        if (sites.isEmpty()) {
+                            EmptyNoSitePrompt(onCreate = { showCreateSiteDialog = true })
+                        } else if (units.isEmpty()) {
                             EmptyCellarPrompt(onCreate = { showCreateDialog = true })
-                        } else if (selectedUnit != null) {
-                            CellarUnitContent(
+                        } else {
+                            CellarUnitsContent(
                                 units = units,
-                                selectedUnit = selectedUnit,
                                 unassignedBottles = unassignedBottles,
-                                onSelectUnit = viewModel::selectUnit,
                                 onOpenBottle = onOpenBottle,
                                 onAddBottle = onAddBottle,
                                 onScan = onScan,
+                                onEditUnit = { editingUnit = it },
+                                onDeleteUnit = { unitPendingDelete = it },
                             )
                         }
                     }
@@ -161,6 +219,115 @@ fun CellarGridScreen(
                 onConfirm = viewModel::createUnit,
             )
         }
+
+        editingUnit?.let { unit ->
+            EditUnitDialog(
+                unit = unit,
+                submitState = updateUnitState,
+                onDismiss = {
+                    editingUnit = null
+                    viewModel.resetUpdateUnitState()
+                },
+                onConfirm = { name, preferredColor -> viewModel.updateUnit(unit.id, name, preferredColor) },
+            )
+        }
+
+        unitPendingDelete?.let { unit ->
+            DeleteUnitDialog(
+                unit = unit,
+                submitState = deleteUnitState,
+                onDismiss = {
+                    unitPendingDelete = null
+                    viewModel.resetDeleteUnitState()
+                },
+                onConfirm = { viewModel.deleteUnit(unit.id) },
+            )
+        }
+
+        if (showCreateSiteDialog) {
+            CreateSiteDialog(
+                submitState = createSiteState,
+                onDismiss = {
+                    showCreateSiteDialog = false
+                    viewModel.resetCreateSiteState()
+                },
+                onConfirm = viewModel::createSite,
+            )
+        }
+
+        renamingSite?.let { site ->
+            RenameSiteDialog(
+                site = site,
+                submitState = renameSiteState,
+                onDismiss = {
+                    renamingSite = null
+                    viewModel.resetRenameSiteState()
+                },
+                onConfirm = { name -> viewModel.renameSite(site.id, name) },
+            )
+        }
+    }
+}
+
+/** Tab row for switching between the household's caves (e.g. "Maison" /
+ *  "Appartement") -- only one cave's casiers are shown at a time. A trailing
+ *  "+" tab creates a new one; a pencil icon after the tabs renames whichever
+ *  cave is currently selected. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun SiteTabsRow(
+    sites: List<CellarSiteDto>,
+    activeSiteId: String?,
+    onSelect: (String) -> Unit,
+    onRenameActive: (CellarSiteDto) -> Unit,
+    onAddSite: () -> Unit,
+) {
+    val selectedIndex = sites.indexOfFirst { it.id == activeSiteId }.coerceAtLeast(0)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        ScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            edgePadding = 12.dp,
+            modifier = Modifier.weight(1f),
+        ) {
+            sites.forEachIndexed { index, site ->
+                Tab(
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(site.id) },
+                    text = { Text(site.name) },
+                )
+            }
+            Tab(
+                selected = false,
+                onClick = onAddSite,
+                icon = { Icon(Icons.Filled.Add, contentDescription = "Ajouter une cave") },
+            )
+        }
+        val activeSite = sites.firstOrNull { it.id == activeSiteId }
+        if (activeSite != null) {
+            IconButton(onClick = { onRenameActive(activeSite) }) {
+                Icon(Icons.Filled.Edit, contentDescription = "Renommer ${activeSite.name}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyNoSitePrompt(onCreate: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            "Tu n'as pas encore de cave.",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            "Crée une première cave (par exemple \"Maison\") pour commencer à y ranger des casiers. Tu pourras en ajouter d'autres ensuite, par exemple pour un appartement ou un garage.",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
+        )
+        Button(onClick = onCreate) { Text("Créer ma cave") }
     }
 }
 
@@ -172,15 +339,63 @@ private fun EmptyCellarPrompt(onCreate: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            "Tu n'as pas encore de cave configurée.",
+            "Cette cave n'a pas encore de casier configuré.",
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            "Crée une première grille de casiers (par exemple 6 rangées x 8 colonnes) pour commencer à ranger tes bouteilles.",
+            "Crée une première grille de casiers (par exemple 6 rangées x 8 colonnes) pour commencer à ranger tes bouteilles. Tu pourras en ajouter d'autres ensuite (un par pièce/meuble, par exemple), chacune éventuellement dédiée à une couleur.",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
         )
-        Button(onClick = onCreate) { Text("Créer ma cave") }
+        Button(onClick = onCreate) { Text("Créer un casier") }
+    }
+}
+
+/** null (no selection) means "Mixte" -- see CellarUnitDto.preferredColor. */
+private val COLOR_OPTIONS: List<Pair<String?, String>> = listOf(
+    null to "Mixte (aucune préférence)",
+    "red" to "Rouges",
+    "white" to "Blancs",
+    "rose" to "Rosés",
+    "sparkling" to "Effervescents",
+    "sweet" to "Doux",
+    "fortified" to "Fortifiés",
+)
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun ColorPreferenceField(
+    selected: String?,
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = COLOR_OPTIONS.firstOrNull { it.first == selected }?.second ?: "Mixte (aucune préférence)"
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Couleur principale") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor().fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            COLOR_OPTIONS.forEach { (value, text) ->
+                DropdownMenuItem(
+                    text = { Text(text) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -189,21 +404,23 @@ private fun EmptyCellarPrompt(onCreate: () -> Unit) {
 private fun CreateUnitDialog(
     submitState: UiState<Unit>?,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, rowCount: Int, columnCount: Int) -> Unit,
+    onConfirm: (name: String, rowCount: Int, columnCount: Int, preferredColor: String?) -> Unit,
 ) {
-    var name by remember { mutableStateOf("Cave principale") }
+    var name by remember { mutableStateOf("") }
     var rows by remember { mutableStateOf("6") }
     var columns by remember { mutableStateOf("8") }
+    var preferredColor by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nouvelle cave") },
+        title = { Text("Nouveau casier") },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Nom") },
+                    placeholder = { Text("Casier 1") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -223,6 +440,17 @@ private fun CreateUnitDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
+                ColorPreferenceField(
+                    selected = preferredColor,
+                    onSelect = { preferredColor = it },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                Text(
+                    "Si tu as plusieurs casiers, en dédier un à une couleur permet à l'app de te proposer directement le bon casier quand tu ajoutes une bouteille.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
                 if (submitState is UiState.Error) {
                     Text(
                         submitState.message,
@@ -237,10 +465,197 @@ private fun CreateUnitDialog(
                 onClick = {
                     val r = rows.toIntOrNull() ?: 0
                     val c = columns.toIntOrNull() ?: 0
-                    if (name.isNotBlank() && r > 0 && c > 0) onConfirm(name.trim(), r, c)
+                    val finalName = name.trim().ifBlank { "Casier 1" }
+                    if (r > 0 && c > 0) onConfirm(finalName, r, c, preferredColor)
                 },
                 enabled = submitState !is UiState.Loading,
             ) { Text("Créer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
+
+/** Rename a unit and/or change its dedicated color -- dimensions can't be
+ *  edited once created (see UpdateCellarUnitDto server-side). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun EditUnitDialog(
+    unit: CellarUnitDto,
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, preferredColor: String) -> Unit,
+) {
+    var name by remember(unit.id) { mutableStateOf(unit.name) }
+    var preferredColor by remember(unit.id) { mutableStateOf(unit.preferredColor) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Modifier ce casier") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ColorPreferenceField(
+                    selected = preferredColor,
+                    onSelect = { preferredColor = it },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        // "none" clears the preference back to mixed -- a real
+                        // null would be silently dropped by the app's JSON
+                        // encoder, so the request always carries an explicit value.
+                        onConfirm(name.trim(), preferredColor ?: "none")
+                    }
+                },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Enregistrer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
+
+/** Confirmation before deleting a casier -- the backend refuses (and this
+ *  dialog then shows why) while it still holds an in-cellar bottle. */
+@Composable
+private fun DeleteUnitDialog(
+    unit: CellarUnitDto,
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Supprimer \"${unit.name}\" ?") },
+        text = {
+            Column {
+                Text("Cette action est définitive. Les emplacements de ce casier seront supprimés.")
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Supprimer", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun CreateSiteDialog(
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nouvelle cave") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom") },
+                    placeholder = { Text("Appartement") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Par exemple \"Maison\" ou \"Appartement\" -- chaque cave a ses propres casiers, et les suggestions d'emplacement se limitent à la cave affichée.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Créer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Annuler") }
+        },
+    )
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun RenameSiteDialog(
+    site: CellarSiteDto,
+    submitState: UiState<Unit>?,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String) -> Unit,
+) {
+    var name by remember(site.id) { mutableStateOf(site.name) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Renommer cette cave") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Nom") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (submitState is UiState.Error) {
+                    Text(
+                        submitState.message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (name.isNotBlank()) onConfirm(name.trim()) },
+                enabled = submitState !is UiState.Loading,
+            ) { Text("Enregistrer") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Annuler") }
@@ -257,38 +672,41 @@ private val WINE_COLOR_LABELS = mapOf(
     "fortified" to "Vins Fortifiés",
 )
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+/**
+ * Whole cellar page (for the currently selected cave) as ONE scrollable
+ * list: action cards, the household-wide "Ma collection" summary,
+ * unassigned bottles, then every cellar unit of this cave in turn -- each
+ * with its own header (name, occupancy, dedicated color if any) and its own
+ * grid of casiers, one after another so scrolling down moves from the first
+ * unit to the second, third, etc.
+ *
+ * Each unit's grid is laid out as plain Rows inside this single LazyColumn
+ * (not a nested LazyVerticalGrid) so the whole page shares one scroll
+ * container -- two independently-scrolling containers previously meant only
+ * the grid portion could scroll, leaving the header content stuck off-screen.
+ */
 @Composable
-private fun CellarUnitContent(
+private fun CellarUnitsContent(
     units: List<CellarUnitDto>,
-    selectedUnit: CellarUnitDto,
     unassignedBottles: List<BottleDto>,
-    onSelectUnit: (String) -> Unit,
     onOpenBottle: (String) -> Unit,
     onAddBottle: (String?) -> Unit,
     onScan: () -> Unit,
+    onEditUnit: (CellarUnitDto) -> Unit,
+    onDeleteUnit: (CellarUnitDto) -> Unit,
 ) {
-    val byColor = remember(selectedUnit) {
-        selectedUnit.locations.mapNotNull { it.bottle }.groupingBy { it.color }.eachCount()
+    val byColor = remember(units) {
+        units.flatMap { it.locations }.mapNotNull { it.bottle }
+            .groupingBy { it.color }.eachCount()
             .entries.sortedByDescending { it.value }
     }
 
-    // Everything -- action cards, the "Ma collection" summary, unassigned
-    // bottles, and the casier grid -- lives in ONE LazyVerticalGrid instead
-    // of a fixed Column wrapping a separately-scrolling grid. Two nested
-    // independently-scrolling containers meant only the grid portion could
-    // scroll, leaving the header content stuck off-screen whenever it (plus
-    // the visible rows) didn't fit the viewport. Full-width header blocks
-    // use item(span = { GridItemSpan(maxLineSpan) }) so they scroll together
-    // with the casier cells as one list.
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(selectedUnit.columnCount),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
+        item {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -308,49 +726,15 @@ private fun CellarUnitContent(
             }
         }
 
-        if (units.size > 1) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = selectedUnit.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Cave") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                    ) {
-                        units.forEach { unit ->
-                            DropdownMenuItem(
-                                text = { Text(unit.name) },
-                                onClick = {
-                                    onSelectUnit(unit.id)
-                                    expanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
         if (byColor.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Text(
                     "Ma collection",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(vertical = 8.dp),
                 )
             }
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     byColor.forEach { (color, count) ->
                         VinListRow(
@@ -366,7 +750,7 @@ private fun CellarUnitContent(
         }
 
         if (unassignedBottles.isNotEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Column {
                     Text(
                         "Bouteilles sans emplacement",
@@ -374,14 +758,14 @@ private fun CellarUnitContent(
                         modifier = Modifier.padding(vertical = 8.dp),
                     )
                     Text(
-                        "Ajoutées sans choisir de casier -- elles ne s'affichent pas dans la grille. Touche-en une pour lui assigner un emplacement.",
+                        "Ajoutées sans choisir de casier -- elles ne s'affichent pas dans les grilles ci-dessous. Touche-en une pour lui assigner un emplacement.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(vertical = 4.dp),
                     )
                 }
             }
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Column(
                     modifier = Modifier.padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -402,37 +786,102 @@ private fun CellarUnitContent(
             }
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                "Grille de casiers — ${selectedUnit.rowCount} rangées x ${selectedUnit.columnCount} colonnes. Appuie sur un casier occupé pour voir la bouteille, ou sur un casier vide pour y ranger une nouvelle bouteille.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-        }
-
-        items(
-            selectedUnit.locations.sortedWith(compareBy({ it.row }, { it.column })),
-            key = { it.id },
-        ) { location ->
-            CellarCell(
-                location = location,
-                onClick = {
-                    val bottle = location.bottle
-                    if (bottle != null) onOpenBottle(bottle.id) else onAddBottle(location.id)
-                },
+        items(units, key = { it.id }) { unit ->
+            CellarUnitSection(
+                unit = unit,
+                showDivider = unit.id != units.last().id,
+                onOpenBottle = onOpenBottle,
+                onAddBottle = onAddBottle,
+                onEditUnit = { onEditUnit(unit) },
+                onDeleteUnit = { onDeleteUnit(unit) },
             )
         }
     }
 }
 
+/** One casier's header (name, occupancy, dedicated color) + its full grid,
+ *  laid out as plain Rows rather than a lazy grid -- see CellarUnitsContent. */
 @Composable
-private fun CellarCell(location: CellarLocationDto, onClick: () -> Unit) {
+private fun CellarUnitSection(
+    unit: CellarUnitDto,
+    showDivider: Boolean,
+    onOpenBottle: (String) -> Unit,
+    onAddBottle: (String?) -> Unit,
+    onEditUnit: () -> Unit,
+    onDeleteUnit: () -> Unit,
+) {
+    val occupied = remember(unit) { unit.locations.count { it.bottle != null } }
+    val colorLabel = COLOR_OPTIONS.firstOrNull { it.first == unit.preferredColor }?.second
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(unit.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "$occupied / ${unit.locations.size} casiers occupés" +
+                        if (unit.preferredColor != null) " • $colorLabel" else " • Mixte",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row {
+                IconButton(onClick = onEditUnit) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Modifier ${unit.name}")
+                }
+                IconButton(onClick = onDeleteUnit) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Supprimer ${unit.name}",
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+        Text(
+            "${unit.rowCount} rangées x ${unit.columnCount} colonnes. Appuie sur un casier occupé pour voir la bouteille, ou sur un casier vide pour y ranger une nouvelle bouteille.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+
+        val rowsByNumber = remember(unit) { unit.locations.groupBy { it.row }.toSortedMap() }
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            rowsByNumber.forEach { (_, rowLocations) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    rowLocations.sortedBy { it.column }.forEach { location ->
+                        CellarCell(
+                            location = location,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val bottle = location.bottle
+                                if (bottle != null) onOpenBottle(bottle.id) else onAddBottle(location.id)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDivider) {
+        HorizontalDivider(modifier = Modifier.padding(top = 12.dp))
+    }
+}
+
+@Composable
+private fun CellarCell(location: CellarLocationDto, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val bottle = location.bottle
     val shape = RoundedCornerShape(12.dp)
     val backgroundColor = if (bottle != null) wineColorFor(bottle.color) else MaterialTheme.colorScheme.surfaceVariant
     Box(
-        modifier = Modifier
+        modifier = modifier
             .aspectRatio(1f)
             .background(backgroundColor, shape)
             .then(

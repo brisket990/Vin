@@ -25,6 +25,10 @@ data class BottleDto(
     val tastingNose: String? = null,
     val tastingPalate: String? = null,
     val tastingSweetness: String? = null,
+    /** Last time this bottle was given its "quart de tour" -- null means
+     *  never explicitly turned, in which case createdAt is the baseline.
+     *  See com.xothiques.vin.util.needsTurn. */
+    val lastTurnedAt: String? = null,
     val createdAt: String,
     val updatedAt: String,
 )

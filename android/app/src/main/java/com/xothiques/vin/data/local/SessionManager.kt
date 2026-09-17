@@ -45,6 +45,7 @@ class SessionManager @Inject constructor(
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val EMAIL = stringPreferencesKey("email")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val ACTIVE_SITE_ID = stringPreferencesKey("active_site_id")
     }
 
     val session: Flow<Session> = dataStore.data.map { prefs ->
@@ -99,5 +100,15 @@ class SessionManager @Inject constructor(
 
     suspend fun setThemeMode(mode: String) {
         dataStore.edit { it[Keys.THEME_MODE] = mode }
+    }
+
+    /** Which cave (CellarSiteDto.id) is currently selected -- shared between
+     *  the cave screen's tab selector and the location-suggestion flows
+     *  (scan, add bottle) so they scope to the same site. Null until the
+     *  user has picked one (or before any site exists). */
+    val activeSiteId: Flow<String?> = dataStore.data.map { prefs -> prefs[Keys.ACTIVE_SITE_ID] }
+
+    suspend fun setActiveSiteId(siteId: String) {
+        dataStore.edit { it[Keys.ACTIVE_SITE_ID] = siteId }
     }
 }

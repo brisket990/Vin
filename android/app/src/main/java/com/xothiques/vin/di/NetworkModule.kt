@@ -9,6 +9,7 @@ import com.xothiques.vin.data.remote.CellarApi
 import com.xothiques.vin.data.remote.DashboardApi
 import com.xothiques.vin.data.remote.ExportApi
 import com.xothiques.vin.data.remote.HouseholdApi
+import com.xothiques.vin.data.remote.NotificationsApi
 import com.xothiques.vin.data.remote.PairingApi
 import com.xothiques.vin.data.remote.ScanApi
 import com.xothiques.vin.data.remote.TastingApi
@@ -81,4 +82,5 @@ object NetworkModule {
     @Provides @Singleton fun provideWishlistApi(retrofit: Retrofit): WishlistApi = retrofit.create(WishlistApi::class.java)
     @Provides @Singleton fun provideDashboardApi(retrofit: Retrofit): DashboardApi = retrofit.create(DashboardApi::class.java)
     @Provides @Singleton fun provideExportApi(retrofit: Retrofit): ExportApi = retrofit.create(ExportApi::class.java)
+    @Provides @Singleton fun provideNotificationsApi(retrofit: Retrofit): NotificationsApi = retrofit.create(NotificationsApi::class.java)
 }

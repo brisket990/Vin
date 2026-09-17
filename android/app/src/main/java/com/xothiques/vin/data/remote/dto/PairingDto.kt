@@ -50,3 +50,18 @@ data class FoodPairingResultDto(
     val reasoning: String,
     val rawResponse: String,
 )
+
+/** Like FoodPairingResultDto but a full recipe idea (title + description)
+ *  rather than a short dish name -- the same suggestion the "apogée"
+ *  (drinking window) push notification includes, available here for an
+ *  on-demand look without waiting for the daily alert. Not persisted
+ *  server-side. */
+@Serializable
+data class RecipeSuggestionResultDto(
+    val bottleId: String,
+    val provider: String,
+    val recipeTitle: String,
+    val recipeDescription: String,
+    val reasoning: String,
+    val rawResponse: String,
+)

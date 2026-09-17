@@ -85,4 +85,10 @@ class BottleRepository @Inject constructor(
         id,
         ConsumeBottleRequest(quantity, rating, comment, consumedDate),
     )
+
+    /** Every in-cellar bottle overdue for its "quart de tour" -- see BottleDto.lastTurnedAt. */
+    suspend fun findNeedingTurn(): List<BottleDto> = bottleApi.findNeedingTurn()
+
+    /** Marks the bottle as turned today. */
+    suspend fun turn(id: String): BottleDto = bottleApi.turn(id)
 }

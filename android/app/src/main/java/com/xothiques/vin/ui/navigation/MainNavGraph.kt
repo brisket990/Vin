@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.xothiques.vin.notifications.PushNotificationSetup
 import com.xothiques.vin.ui.bottle.BottleDetailScreen
 import com.xothiques.vin.ui.bottle.BottleFormScreen
 import com.xothiques.vin.ui.bottle.BottleListScreen
@@ -55,6 +56,7 @@ private val BOTTOM_TABS = listOf(
 @Composable
 fun MainNavGraph() {
     val navController = rememberNavController()
+    PushNotificationSetup()
 
     Scaffold(
         bottomBar = { MainBottomBar(navController) },

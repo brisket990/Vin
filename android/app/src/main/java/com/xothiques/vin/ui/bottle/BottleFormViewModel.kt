@@ -3,6 +3,7 @@ package com.xothiques.vin.ui.bottle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xothiques.vin.data.local.SessionManager
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.CreateBottleRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
@@ -14,6 +15,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -27,6 +29,7 @@ import javax.inject.Inject
 class BottleFormViewModel @Inject constructor(
     private val bottleRepository: BottleRepository,
     private val cellarRepository: CellarRepository,
+    private val sessionManager: SessionManager,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -56,9 +59,11 @@ class BottleFormViewModel @Inject constructor(
     }
 
     /**
-     * Most households only ever have one cellar unit, so for the "suggest a
-     * spot for me" action we just target the first one rather than asking
-     * the user to pick a unit inside the bottle form too.
+     * Searches across every cellar unit the household has (see
+     * CellarRepository.suggestLocationAcrossUnits) rather than assuming a
+     * single one -- a unit dedicated to a color (CellarUnitDto.preferredColor)
+     * is strongly favored/avoided automatically, so the user never has to
+     * pick a casier by hand just to add a bottle.
      */
     fun suggestLocations(
         color: String,
@@ -69,26 +74,54 @@ class BottleFormViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             _suggestions.value = UiState.Loading
-            val unit = try {
-                cellarRepository.listUnits().firstOrNull()
+            val siteId = try {
+                resolveActiveSiteId()
             } catch (t: Throwable) {
                 _suggestions.value = UiState.Error(t.toUserMessage())
                 return@launch
             }
-            if (unit == null) {
-                _suggestions.value = UiState.Error("Crée d'abord une cave depuis l'onglet Cave.")
+            if (siteId == null) {
+                _suggestions.value = UiState.Error(
+                    "Choisis d'abord une cave dans l'onglet Cave -- la suggestion se limite à la cave active.",
+                )
+                return@launch
+            }
+            val hasUnits = try {
+                cellarRepository.listUnits().any { it.siteId == siteId }
+            } catch (t: Throwable) {
+                _suggestions.value = UiState.Error(t.toUserMessage())
+                return@launch
+            }
+            if (!hasUnits) {
+                _suggestions.value = UiState.Error("Crée d'abord un casier dans cette cave depuis l'onglet Cave.")
                 return@launch
             }
             _suggestions.value = try {
                 UiState.Success(
-                    cellarRepository.suggestLocation(
-                        unit.id, color, region, drinkFromYear, drinkUntilYear, quantity,
+                    cellarRepository.suggestLocationAcrossUnits(
+                        siteId = siteId,
+                        color = color,
+                        region = region,
+                        drinkFromYear = drinkFromYear,
+                        drinkUntilYear = drinkUntilYear,
+                        quantity = quantity,
                     ),
                 )
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())
             }
         }
+    }
+
+    /** Falls back to the household's only cave when none has been explicitly
+     *  selected yet (e.g. no site is stored on this device/session) so the
+     *  user isn't forced through the Cave tab just to get a suggestion.
+     *  Returns null when there's no cave yet, or when there are several and
+     *  none is marked active -- the caller can't guess which one to use. */
+    private suspend fun resolveActiveSiteId(): String? {
+        sessionManager.activeSiteId.first()?.let { return it }
+        val sites = cellarRepository.listSites()
+        return sites.singleOrNull()?.id
     }
 
     fun clearSuggestions() {

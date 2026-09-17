@@ -1,7 +1,15 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 import { wineColorValues } from '../../db/schema.js';
 
 export class SuggestLocationDto {
+  /** Required for the cross-unit suggestion (POST /cellar/units/suggest-location)
+   *  -- restricts the search to that cave's units, since a slot in another
+   *  cave (e.g. a different apartment) isn't useful when adding a bottle in
+   *  person. Ignored by the single-unit route, which already knows its unit. */
+  @IsOptional()
+  @IsUUID()
+  siteId?: string;
+
   @IsIn(wineColorValues)
   color!: (typeof wineColorValues)[number];
 

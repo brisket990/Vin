@@ -43,6 +43,13 @@
       "when": 1789548195215,
       "tag": "0005_add_bottle_apogee_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789639735570,
+      "tag": "0006_add_cellar_sites",
+      "breakpoints": true
     }
   ]
 }

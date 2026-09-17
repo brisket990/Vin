@@ -45,12 +45,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
+import com.xothiques.vin.data.remote.dto.RecipeSuggestionResultDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.theme.wineColorFor
+import com.xothiques.vin.util.daysSinceLastTurn
+import com.xothiques.vin.util.needsTurn
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +66,8 @@ fun BottleDetailScreen(
     val consumeState by viewModel.consumeState.collectAsState()
     val deleteState by viewModel.deleteState.collectAsState()
     val foodPairingState by viewModel.foodPairingState.collectAsState()
+    val recipeState by viewModel.recipeState.collectAsState()
+    val turnState by viewModel.turnState.collectAsState()
     var showConsumeDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -74,6 +79,11 @@ fun BottleDetailScreen(
     }
     LaunchedEffect(deleteState) {
         if (deleteState is UiState.Success) onBack()
+    }
+    LaunchedEffect(turnState) {
+        if (turnState is UiState.Success) {
+            viewModel.resetTurnState()
+        }
     }
 
     Scaffold { padding ->
@@ -121,6 +131,10 @@ fun BottleDetailScreen(
                         onConsume = { showConsumeDialog = true },
                         foodPairingState = foodPairingState,
                         onSuggestFoodPairing = viewModel::suggestFoodPairing,
+                        recipeState = recipeState,
+                        onSuggestRecipe = viewModel::suggestRecipe,
+                        turnState = turnState,
+                        onTurn = viewModel::turn,
                     )
                 }
             }
@@ -159,6 +173,10 @@ private fun BottleDetailContent(
     onConsume: () -> Unit,
     foodPairingState: UiState<FoodPairingResultDto>?,
     onSuggestFoodPairing: () -> Unit,
+    recipeState: UiState<RecipeSuggestionResultDto>?,
+    onSuggestRecipe: () -> Unit,
+    turnState: UiState<Unit>?,
+    onTurn: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -235,6 +253,10 @@ private fun BottleDetailContent(
         }
 
         if (bottle.status == "in_cellar") {
+            TurnReminderCard(bottle = bottle, turnState = turnState, onTurn = onTurn)
+        }
+
+        if (bottle.status == "in_cellar") {
             OutlinedButton(
                 onClick = onSuggestFoodPairing,
                 modifier = Modifier.fillMaxWidth(),
@@ -253,8 +275,82 @@ private fun BottleDetailContent(
         }
 
         if (bottle.status == "in_cellar") {
+            OutlinedButton(
+                onClick = onSuggestRecipe,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = recipeState !is UiState.Loading,
+            ) {
+                if (recipeState is UiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Suggérer une idée de recette pour cette bouteille")
+                }
+            }
+        }
+
+        if (recipeState != null) {
+            RecipeSuggestionCard(recipeState)
+        }
+
+        if (bottle.status == "in_cellar") {
             Button(onClick = onConsume, modifier = Modifier.fillMaxWidth()) {
                 Text("Marquer comme bue")
+            }
+        }
+    }
+}
+
+/**
+ * "Quart de tour" -- classic advice for a bottle stored lying down under
+ * natural cork: give it a quarter turn every few months so sediment/the
+ * cork don't always settle on one side. Shows how long it's been since the
+ * last turn (or since the bottle was added, if never explicitly turned)
+ * and highlights it once overdue, with a one-tap action to log today's turn.
+ */
+@Composable
+private fun TurnReminderCard(
+    bottle: BottleDto,
+    turnState: UiState<Unit>?,
+    onTurn: () -> Unit,
+) {
+    val days = bottle.daysSinceLastTurn()
+    val overdue = bottle.needsTurn()
+
+    Card(
+        shape = MaterialTheme.shapes.large,
+        colors = if (overdue) {
+            androidx.compose.material3.CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+            )
+        } else {
+            androidx.compose.material3.CardDefaults.cardColors()
+        },
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Quart de tour", style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = when {
+                    days == null -> "Date d'ajout inconnue."
+                    days == 0L -> "Tournée aujourd'hui."
+                    days == 1L -> "Tournée il y a 1 jour."
+                    else -> "Tournée il y a $days jours."
+                } + if (overdue) " Il est temps de lui donner un quart de tour." else "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (overdue) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
+            )
+            if (turnState is UiState.Error) {
+                Text(turnState.message, color = MaterialTheme.colorScheme.error)
+            }
+            OutlinedButton(
+                onClick = onTurn,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = turnState !is UiState.Loading,
+            ) {
+                if (turnState is UiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Tournée aujourd'hui")
+                }
             }
         }
     }
@@ -279,6 +375,39 @@ private fun FoodPairingCard(state: UiState<FoodPairingResultDto>) {
                     state.data.suggestedDishes.forEach { dish ->
                         Text("• $dish", style = MaterialTheme.typography.bodyMedium)
                     }
+                    if (state.data.reasoning.isNotBlank()) {
+                        Text(
+                            state.data.reasoning,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+        else -> Unit
+    }
+}
+
+@Composable
+private fun RecipeSuggestionCard(state: UiState<RecipeSuggestionResultDto>) {
+    when (state) {
+        is UiState.Error -> {
+            Card(shape = MaterialTheme.shapes.large) {
+                Text(
+                    state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+        is UiState.Success -> {
+            Card(shape = MaterialTheme.shapes.large) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Idée de recette", style = MaterialTheme.typography.titleSmall)
+                    Text(state.data.recipeTitle, fontWeight = FontWeight.Bold)
+                    Text(state.data.recipeDescription, style = MaterialTheme.typography.bodyMedium)
                     if (state.data.reasoning.isNotBlank()) {
                         Text(
                             state.data.reasoning,

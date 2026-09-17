@@ -1,7 +1,12 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min, MinLength } from 'class-validator';
 import { wineColorValues } from '../../db/schema.js';
 
 export class CreateCellarUnitDto {
+  /** Which cave (physical location) this casier belongs to -- required now
+   *  that a household can have more than one (see CellarSite). */
+  @IsUUID()
+  siteId!: string;
+
   @IsString()
   @MinLength(1)
   name!: string;

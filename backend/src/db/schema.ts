@@ -134,11 +134,32 @@ export const aiProviderConfigs = pgTable(
 // Cellar structure (grid of numbered slots)
 // ---------------------------------------------------------------------------
 
+// A physical location the household stores wine in (e.g. "Maison" /
+// "Appartement") -- a household always has at least one, auto-created for
+// existing households by the migration that introduced this table. Each
+// cellar unit (casier) belongs to exactly one site; the app scopes browsing
+// and location suggestions to one site at a time (see CellarService), since
+// suggesting a slot at a site the person isn't physically standing in front
+// of would be useless.
+export const cellarSites = pgTable('cellar_sites', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const cellarUnits = pgTable('cellar_units', {
   id: uuid('id').defaultRandom().primaryKey(),
   householdId: uuid('household_id')
     .notNull()
     .references(() => households.id, { onDelete: 'cascade' }),
+  siteId: uuid('site_id')
+    .notNull()
+    .references(() => cellarSites.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   rowCount: integer('row_count').notNull(),
   columnCount: integer('column_count').notNull(),
@@ -339,11 +360,20 @@ export const wishlistItems = pgTable('wishlist_items', {
 export const householdsRelations = relations(households, ({ many }) => ({
   users: many(users),
   aiProviderConfigs: many(aiProviderConfigs),
+  cellarSites: many(cellarSites),
   cellarUnits: many(cellarUnits),
   bottles: many(bottles),
   pairingSuggestions: many(pairingSuggestions),
   wishlistItems: many(wishlistItems),
   deviceTokens: many(deviceTokens),
+}));
+
+export const cellarSitesRelations = relations(cellarSites, ({ one, many }) => ({
+  household: one(households, {
+    fields: [cellarSites.householdId],
+    references: [households.id],
+  }),
+  units: many(cellarUnits),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -372,6 +402,10 @@ export const cellarUnitsRelations = relations(
     household: one(households, {
       fields: [cellarUnits.householdId],
       references: [households.id],
+    }),
+    site: one(cellarSites, {
+      fields: [cellarUnits.siteId],
+      references: [cellarSites.id],
     }),
     locations: many(cellarLocations),
   }),

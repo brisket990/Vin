@@ -122,7 +122,14 @@ fun LocationPicker(
                                         }
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                 ) {
-                                    Text(suggestion.label, style = MaterialTheme.typography.labelLarge)
+                                    Text(
+                                        if (suggestion.unitName != null) {
+                                            "${suggestion.unitName} · ${suggestion.label}"
+                                        } else {
+                                            suggestion.label
+                                        },
+                                        style = MaterialTheme.typography.labelLarge,
+                                    )
                                 }
                             }
                         }

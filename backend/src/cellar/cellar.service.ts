@@ -1,9 +1,11 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
-import { bottles, cellarLocations, cellarUnits } from '../db/schema.js';
+import { bottles, cellarLocations, cellarSites, cellarUnits } from '../db/schema.js';
 import type { CreateCellarUnitDto } from './dto/create-cellar-unit.dto.js';
 import type { UpdateCellarUnitDto } from './dto/update-cellar-unit.dto.js';
+import type { CreateCellarSiteDto } from './dto/create-cellar-site.dto.js';
+import type { UpdateCellarSiteDto } from './dto/update-cellar-site.dto.js';
 import type { SuggestLocationDto } from './dto/suggest-location.dto.js';
 
 interface Run {
@@ -34,6 +36,51 @@ export interface LocationWithOccupant {
 @Injectable()
 export class CellarService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDb) {}
+
+  // -------------------------------------------------------------------
+  // Sites (physical locations: "Maison", "Appartement", ...)
+  // -------------------------------------------------------------------
+
+  async listSites(householdId: string) {
+    return this.db
+      .select()
+      .from(cellarSites)
+      .where(eq(cellarSites.householdId, householdId))
+      .orderBy(cellarSites.createdAt);
+  }
+
+  async createSite(householdId: string, dto: CreateCellarSiteDto) {
+    const [site] = await this.db
+      .insert(cellarSites)
+      .values({ householdId, name: dto.name })
+      .returning();
+    return site;
+  }
+
+  private async getSiteOrThrow(householdId: string, siteId: string) {
+    const [site] = await this.db
+      .select()
+      .from(cellarSites)
+      .where(and(eq(cellarSites.id, siteId), eq(cellarSites.householdId, householdId)))
+      .limit(1);
+
+    if (!site) throw new NotFoundException('Cave introuvable.');
+    return site;
+  }
+
+  async updateSite(householdId: string, siteId: string, dto: UpdateCellarSiteDto) {
+    await this.getSiteOrThrow(householdId, siteId);
+    const [site] = await this.db
+      .update(cellarSites)
+      .set({ name: dto.name })
+      .where(eq(cellarSites.id, siteId))
+      .returning();
+    return site;
+  }
+
+  // -------------------------------------------------------------------
+  // Units (casiers)
+  // -------------------------------------------------------------------
 
   async listUnits(householdId: string) {
     const units = await this.db
@@ -113,11 +160,14 @@ export class CellarService {
    * (rowCount x columnCount), labelled "R{row}-C{column}".
    */
   async createUnit(householdId: string, dto: CreateCellarUnitDto) {
+    await this.getSiteOrThrow(householdId, dto.siteId);
+
     const unit = await this.db.transaction(async (tx) => {
       const [createdUnit] = await tx
         .insert(cellarUnits)
         .values({
           householdId,
+          siteId: dto.siteId,
           name: dto.name,
           rowCount: dto.rowCount,
           columnCount: dto.columnCount,
@@ -160,6 +210,38 @@ export class CellarService {
     }
 
     return this.getUnit(householdId, unitId);
+  }
+
+  /** Deletes a casier, refusing while it still holds any in-cellar bottle
+   *  (the household must move or drink them first) so a location is never
+   *  lost by accident. Its slots (cellar_locations) cascade-delete at the
+   *  DB level once the unit itself is removed. */
+  async removeUnit(householdId: string, unitId: string) {
+    await this.getUnitOrThrow(householdId, unitId);
+
+    const locationIds = (
+      await this.db
+        .select({ id: cellarLocations.id })
+        .from(cellarLocations)
+        .where(eq(cellarLocations.unitId, unitId))
+    ).map((l) => l.id);
+
+    if (locationIds.length > 0) {
+      const [occupant] = await this.db
+        .select({ id: bottles.id })
+        .from(bottles)
+        .where(and(inArray(bottles.locationId, locationIds), eq(bottles.status, 'in_cellar')))
+        .limit(1);
+
+      if (occupant) {
+        throw new BadRequestException(
+          'Ce casier contient encore des bouteilles -- déplace-les ou marque-les comme bues avant de le supprimer.',
+        );
+      }
+    }
+
+    await this.db.delete(cellarUnits).where(eq(cellarUnits.id, unitId));
+    return { deleted: true };
   }
 
   /** Every maximal run of contiguous free slots within each row of `locations`
@@ -304,19 +386,29 @@ export class CellarService {
 
   /**
    * Same placement logic as suggestLocations, but searches every cellar unit
-   * of the household at once and returns the best 3 slots overall -- used
-   * once a household has more than one unit, so the caller doesn't have to
-   * pick a unit before asking where a bottle should go. A unit with a
-   * `preferredColor` set is strongly favored when it matches `dto.color` and
-   * strongly avoided when it doesn't (see PREFERRED_COLOR_BONUS); a unit
-   * left "mixed" (no preferredColor) is ranked purely on in-row affinity,
-   * exactly as suggestLocations does for a single unit.
+   * of `dto.siteId` at once and returns the best 3 slots overall -- used
+   * once a cave has more than one unit, so the caller doesn't have to pick
+   * a unit before asking where a bottle should go. Scoped to a single site
+   * (required, see SuggestLocationDto) rather than every unit the household
+   * owns across all its caves, since a slot at a cave the person isn't
+   * currently in front of wouldn't be useful. A unit with a `preferredColor`
+   * set is strongly favored when it matches `dto.color` and strongly avoided
+   * when it doesn't (see PREFERRED_COLOR_BONUS); a unit left "mixed" (no
+   * preferredColor) is ranked purely on in-row affinity, exactly as
+   * suggestLocations does for a single unit.
    */
   async suggestAcrossUnits(householdId: string, dto: SuggestLocationDto) {
+    if (!dto.siteId) {
+      throw new BadRequestException(
+        "Choisis d'abord une cave -- la suggestion se limite aux casiers de la cave active.",
+      );
+    }
+    await this.getSiteOrThrow(householdId, dto.siteId);
+
     const units = await this.db
       .select()
       .from(cellarUnits)
-      .where(eq(cellarUnits.householdId, householdId));
+      .where(and(eq(cellarUnits.householdId, householdId), eq(cellarUnits.siteId, dto.siteId)));
 
     if (units.length === 0) return [];
 

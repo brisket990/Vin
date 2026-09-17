@@ -5,6 +5,9 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    // Requires app/google-services.json to be present (see NOTIFICATIONS_SETUP.md) --
+    // without it, this plugin fails the build rather than silently skipping.
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -84,4 +87,13 @@ dependencies {
     implementation(libs.datastore.preferences)
 
     implementation(libs.accompanist.permissions)
+
+    // Push notifications (quart de tour reminders, later apogée alerts) --
+    // requires a real app/google-services.json to actually deliver anything;
+    // see NOTIFICATIONS_SETUP.md. A placeholder file ships in the repo so the
+    // build itself never depends on Firebase being configured yet.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    // .await() on the Task<String> FirebaseMessaging.getToken() returns.
+    implementation(libs.kotlinx.coroutines.play.services)
 }

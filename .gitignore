@@ -13,9 +13,3 @@ android/local.properties
 android/.idea/
 android/*.iml
 android/captures/
-*.apk
-build-log*.txt
-vin-version.txt
-vin-repo*.zip
-vin-android*.zip
-vin-backend*.zip

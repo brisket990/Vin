@@ -7,14 +7,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -36,6 +41,7 @@ import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.common.VinListRow
 import com.xothiques.vin.ui.theme.wineColorFor
+import com.xothiques.vin.util.needsTurn
 
 /**
  * Flat, scrollable listing of every bottle currently in the cellar -- the
@@ -164,11 +170,21 @@ private fun BottleRow(bottle: BottleDto, onClick: () -> Unit) {
         badgeContentColor = wineColorFor(bottle.color),
         onClick = onClick,
         trailing = {
-            Text(
-                "×${bottle.quantity}",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (bottle.needsTurn()) {
+                    Icon(
+                        Icons.Filled.Sync,
+                        contentDescription = "Quart de tour à faire",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(end = 6.dp).size(18.dp),
+                    )
+                }
+                Text(
+                    "×${bottle.quantity}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
     )
 }
