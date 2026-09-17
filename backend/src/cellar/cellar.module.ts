@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { CellarService } from './cellar.service.js';
-import { CellarController } from './cellar.controller.js';
+import { CellarController, CellarLocationsController } from './cellar.controller.js';
 
 @Module({
   providers: [CellarService],
-  controllers: [CellarController],
+  controllers: [CellarController, CellarLocationsController],
   exports: [CellarService],
 })
 export class CellarModule {}

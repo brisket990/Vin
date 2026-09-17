@@ -2,6 +2,8 @@ package com.xothiques.vin.data.remote
 
 import com.xothiques.vin.data.remote.dto.CellarUnitDto
 import com.xothiques.vin.data.remote.dto.CreateCellarUnitRequest
+import com.xothiques.vin.data.remote.dto.NextFreeLocationDto
+import com.xothiques.vin.data.remote.dto.NextFreeLocationsRequest
 import com.xothiques.vin.data.remote.dto.SuggestLocationRequest
 import com.xothiques.vin.data.remote.dto.SuggestedLocationDto
 import retrofit2.http.Body
@@ -24,4 +26,10 @@ interface CellarApi {
         @Path("id") unitId: String,
         @Body body: SuggestLocationRequest,
     ): List<SuggestedLocationDto>
+
+    @POST("api/vin/cellar/locations/{id}/next-free")
+    suspend fun nextFreeLocations(
+        @Path("id") locationId: String,
+        @Body body: NextFreeLocationsRequest,
+    ): List<NextFreeLocationDto>
 }

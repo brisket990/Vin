@@ -33,6 +33,13 @@ export class BottleController {
     return this.bottleService.findAll(user.householdId, query);
   }
 
+  // Declared before ':id' -- a literal segment ("needing-turn") would
+  // otherwise never be reached if Nest tried the dynamic route first.
+  @Get('needing-turn')
+  findNeedingTurn(@CurrentUser() user: AuthenticatedUser) {
+    return this.bottleService.findNeedingTurn(user.householdId);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.bottleService.findOne(user.householdId, id);
@@ -59,5 +66,11 @@ export class BottleController {
     @Body() dto: ConsumeBottleDto,
   ) {
     return this.bottleService.consume(user.householdId, id, user.id, dto);
+  }
+
+  /** "Quart de tour" reminder: marks the bottle as turned today. */
+  @Post(':id/turn')
+  turn(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.bottleService.turn(user.householdId, id);
   }
 }

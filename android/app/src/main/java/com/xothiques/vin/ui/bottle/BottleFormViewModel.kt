@@ -65,6 +65,7 @@ class BottleFormViewModel @Inject constructor(
         region: String?,
         drinkFromYear: Int?,
         drinkUntilYear: Int?,
+        quantity: Int? = null,
     ) {
         viewModelScope.launch {
             _suggestions.value = UiState.Loading
@@ -80,7 +81,9 @@ class BottleFormViewModel @Inject constructor(
             }
             _suggestions.value = try {
                 UiState.Success(
-                    cellarRepository.suggestLocation(unit.id, color, region, drinkFromYear, drinkUntilYear),
+                    cellarRepository.suggestLocation(
+                        unit.id, color, region, drinkFromYear, drinkUntilYear, quantity,
+                    ),
                 )
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())
@@ -103,7 +106,9 @@ class BottleFormViewModel @Inject constructor(
                 if (isEditing) {
                     bottleRepository.update(bottleId!!, request)
                 } else {
-                    bottleRepository.create(request)
+                    // Splits across consecutive casiers when quantity > 1 --
+                    // see BottleRepository.createExpandingLocations doc comment.
+                    bottleRepository.createExpandingLocations(request)
                 }
                 UiState.Success(Unit)
             } catch (t: Throwable) {

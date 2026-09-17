@@ -2,7 +2,10 @@ package com.xothiques.vin.ui.cellar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.CellarUnitDto
+import com.xothiques.vin.data.repository.BottleFilters
+import com.xothiques.vin.data.repository.BottleRepository
 import com.xothiques.vin.data.repository.CellarRepository
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.toUserMessage
@@ -22,6 +25,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CellarViewModel @Inject constructor(
     private val cellarRepository: CellarRepository,
+    private val bottleRepository: BottleRepository,
 ) : ViewModel() {
 
     private val _unitsState = MutableStateFlow<UiState<List<CellarUnitDto>>>(UiState.Loading)
@@ -33,8 +37,17 @@ class CellarViewModel @Inject constructor(
     private val _createUnitState = MutableStateFlow<UiState<Unit>?>(null)
     val createUnitState: StateFlow<UiState<Unit>?> = _createUnitState.asStateFlow()
 
+    // Bottles saved without a cellar location (e.g. a scan confirmed without
+    // picking a casier) never occupy a grid cell, so CellarUnitContent alone
+    // would never show them -- they'd silently exist only in the dashboard
+    // count. Surfaced separately here so nothing a household adds is ever
+    // lost/unreachable.
+    private val _unassignedBottlesState = MutableStateFlow<UiState<List<BottleDto>>>(UiState.Loading)
+    val unassignedBottlesState: StateFlow<UiState<List<BottleDto>>> = _unassignedBottlesState.asStateFlow()
+
     init {
         loadUnits()
+        loadUnassignedBottles()
     }
 
     fun loadUnits() {
@@ -50,6 +63,23 @@ class CellarViewModel @Inject constructor(
                 UiState.Error(t.toUserMessage())
             }
         }
+    }
+
+    fun loadUnassignedBottles() {
+        viewModelScope.launch {
+            _unassignedBottlesState.value = try {
+                val bottles = bottleRepository.findAll(BottleFilters(status = "in_cellar"))
+                UiState.Success(bottles.filter { it.locationId == null })
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
+            }
+        }
+    }
+
+    /** Call after returning from the bottle form/detail screens, in case a location was just assigned. */
+    fun refresh() {
+        loadUnits()
+        loadUnassignedBottles()
     }
 
     fun selectUnit(unitId: String) {

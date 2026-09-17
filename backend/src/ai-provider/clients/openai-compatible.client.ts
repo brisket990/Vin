@@ -1,14 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
 import {
   RECOGNITION_SYSTEM_PROMPT,
+  buildFoodPairingPrompt,
   buildPairingPrompt,
+  buildRecipePrompt,
   extractJson,
 } from '../prompt.js';
 import type {
   AIProviderClient,
+  FoodPairingResult,
+  FoodPairingStructured,
   PairingCandidateBottle,
   PairingResult,
   PairingStructured,
+  RecipeSuggestionResult,
+  RecipeSuggestionStructured,
   RecognitionResult,
   RecognizedWineFields,
 } from '../types.js';
@@ -61,7 +67,7 @@ export class OpenAiCompatibleClient implements AIProviderClient {
 
     const response = (await postJson(this.chatUrl, this.headers(), {
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: RECOGNITION_SYSTEM_PROMPT },
         {
@@ -86,11 +92,33 @@ export class OpenAiCompatibleClient implements AIProviderClient {
   ): Promise<PairingResult> {
     const response = (await postJson(this.chatUrl, this.headers(), {
       model: this.model,
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [{ role: 'user', content: buildPairingPrompt(dish, candidates) }],
     })) as ChatCompletionsResponse;
 
     const rawResponse = this.extractText(response);
     return { structured: extractJson<PairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult> {
+    const response = (await postJson(this.chatUrl, this.headers(), {
+      model: this.model,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildFoodPairingPrompt(bottle) }],
+    })) as ChatCompletionsResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<FoodPairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestRecipeForBottle(bottle: PairingCandidateBottle): Promise<RecipeSuggestionResult> {
+    const response = (await postJson(this.chatUrl, this.headers(), {
+      model: this.model,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: buildRecipePrompt(bottle) }],
+    })) as ChatCompletionsResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<RecipeSuggestionStructured>(rawResponse), rawResponse };
   }
 }

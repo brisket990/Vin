@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { PairingService } from './pairing.service.js';
 import { CreatePairingDto } from './dto/create-pairing.dto.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -11,6 +11,26 @@ export class PairingController {
   @Post()
   suggest(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreatePairingDto) {
     return this.pairingService.suggest(user.householdId, dto);
+  }
+
+  /** Reverse direction: given a bottle already in the cellar, ask the AI what food pairs well with it. */
+  @Post('for-bottle/:bottleId')
+  suggestForBottle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('bottleId') bottleId: string,
+    @Query('provider') provider?: string,
+  ) {
+    return this.pairingService.suggestForBottle(user.householdId, bottleId, provider);
+  }
+
+  /** Like for-bottle but a full recipe idea rather than a short dish name -- also used by the apogée alert job. */
+  @Post('recipe-for-bottle/:bottleId')
+  suggestRecipeForBottle(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('bottleId') bottleId: string,
+    @Query('provider') provider?: string,
+  ) {
+    return this.pairingService.suggestRecipeForBottle(user.householdId, bottleId, provider);
   }
 
   @Get()

@@ -41,6 +41,16 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   STORAGE_DIR?: string;
+
+  // Full JSON content of a Firebase service account key (Firebase console ->
+  // Project settings -> Service accounts -> Generate new private key), used
+  // to send push notifications (quart de tour reminders, later apogée
+  // alerts). Optional: when unset, NotificationsService logs a warning once
+  // and every send becomes a no-op, so the rest of the app (and tests) work
+  // fine without it configured.
+  @IsString()
+  @IsOptional()
+  FIREBASE_SERVICE_ACCOUNT_JSON?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

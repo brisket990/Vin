@@ -42,6 +42,7 @@ data class SuggestLocationRequest(
     val region: String? = null,
     val drinkFromYear: Int? = null,
     val drinkUntilYear: Int? = null,
+    val quantity: Int? = null,
 )
 
 @Serializable
@@ -51,4 +52,18 @@ data class SuggestedLocationDto(
     val row: Int,
     val column: Int,
     val score: Int,
+    val runLength: Int = 1,
+)
+
+@Serializable
+data class NextFreeLocationsRequest(
+    val count: Int,
+)
+
+@Serializable
+data class NextFreeLocationDto(
+    val locationId: String,
+    val label: String,
+    val row: Int,
+    val column: Int,
 )

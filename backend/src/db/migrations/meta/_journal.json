@@ -15,6 +15,34 @@
       "when": 1789288992017,
       "tag": "0001_fat_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789420984904,
+      "tag": "0002_add_bottle_tasting_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789503755337,
+      "tag": "0003_add_cellar_unit_preferred_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789541724633,
+      "tag": "0004_add_bottle_turn_reminder_and_device_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789548195215,
+      "tag": "0005_add_bottle_apogee_reminders",
+      "breakpoints": true
     }
   ]
 }

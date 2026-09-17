@@ -22,6 +22,9 @@ data class BottleDto(
     val labelPhotoUrl: String? = null,
     val status: String,
     val notes: String? = null,
+    val tastingNose: String? = null,
+    val tastingPalate: String? = null,
+    val tastingSweetness: String? = null,
     val createdAt: String,
     val updatedAt: String,
 )
@@ -43,6 +46,9 @@ data class CreateBottleRequest(
     val locationId: String? = null,
     val labelPhotoUrl: String? = null,
     val notes: String? = null,
+    val tastingNose: String? = null,
+    val tastingPalate: String? = null,
+    val tastingSweetness: String? = null,
 )
 
 // The API accepts a partial update (PartialType); reuse the same shape.

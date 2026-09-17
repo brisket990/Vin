@@ -1,13 +1,19 @@
 import {
   RECOGNITION_SYSTEM_PROMPT,
+  buildFoodPairingPrompt,
   buildPairingPrompt,
+  buildRecipePrompt,
   extractJson,
 } from '../prompt.js';
 import type {
   AIProviderClient,
+  FoodPairingResult,
+  FoodPairingStructured,
   PairingCandidateBottle,
   PairingResult,
   PairingStructured,
+  RecipeSuggestionResult,
+  RecipeSuggestionStructured,
   RecognitionResult,
   RecognizedWineFields,
 } from '../types.js';
@@ -64,5 +70,23 @@ export class GoogleProviderClient implements AIProviderClient {
 
     const rawResponse = this.extractText(response);
     return { structured: extractJson<PairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestFoodForBottle(bottle: PairingCandidateBottle): Promise<FoodPairingResult> {
+    const response = (await postJson(this.url(), {}, {
+      contents: [{ parts: [{ text: buildFoodPairingPrompt(bottle) }] }],
+    })) as GeminiResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<FoodPairingStructured>(rawResponse), rawResponse };
+  }
+
+  async suggestRecipeForBottle(bottle: PairingCandidateBottle): Promise<RecipeSuggestionResult> {
+    const response = (await postJson(this.url(), {}, {
+      contents: [{ parts: [{ text: buildRecipePrompt(bottle) }] }],
+    })) as GeminiResponse;
+
+    const rawResponse = this.extractText(response);
+    return { structured: extractJson<RecipeSuggestionStructured>(rawResponse), rawResponse };
   }
 }

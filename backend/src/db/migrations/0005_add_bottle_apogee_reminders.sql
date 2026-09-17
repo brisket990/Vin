@@ -1,0 +1,2 @@
+ALTER TABLE "bottles" ADD COLUMN "apogee_start_reminder_sent_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "bottles" ADD COLUMN "apogee_end_reminder_sent_at" timestamp with time zone;

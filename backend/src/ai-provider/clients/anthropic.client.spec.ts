@@ -41,6 +41,38 @@ describe('AnthropicProviderClient', () => {
     expect(result.structured.vintage).toBe(2018);
   });
 
+  it('sends the recipe prompt and parses the structured recipe suggestion', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        content: [
+          {
+            type: 'text',
+            text: '{"recipeTitle":"Canard rôti aux cerises","recipeDescription":"Rôtir un canard...","reasoning":"S\'accorde avec les tanins."}',
+          },
+        ],
+      }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = new AnthropicProviderClient('fake-key', 'claude-test-model');
+    const result = await client.suggestRecipeForBottle({
+      id: 'b1',
+      name: 'Château Test',
+      producer: null,
+      region: null,
+      color: 'red',
+      grapeVarieties: null,
+      vintage: 2018,
+      quantity: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.structured.recipeTitle).toBe('Canard rôti aux cerises');
+    expect(result.structured.reasoning).toContain('tanins');
+  });
+
   it('throws an UnauthorizedException-like error when the API key is rejected', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,

@@ -7,5 +7,6 @@ import { AiProviderModule } from '../ai-provider/ai-provider.module.js';
   imports: [AiProviderModule],
   providers: [PairingService],
   controllers: [PairingController],
+  exports: [PairingService],
 })
 export class PairingModule {}

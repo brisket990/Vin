@@ -9,6 +9,7 @@ object AuthRoutes {
 
 object MainRoutes {
     const val CELLAR = "cellar"
+    /** Flat, scrollable list of every bottle in the cellar (vs. the grid view). */
     const val BOTTLES = "bottles"
     const val PAIRING = "pairing"
     const val SETTINGS = "settings"

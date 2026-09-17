@@ -16,6 +16,7 @@ import { TastingModule } from './tasting/tasting.module.js';
 import { WishlistModule } from './wishlist/wishlist.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { ExportModule } from './export/export.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { ExportModule } from './export/export.module.js';
     WishlistModule,
     DashboardModule,
     ExportModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

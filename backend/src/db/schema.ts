@@ -51,6 +51,8 @@ export const bottleStatusEnum = pgEnum('bottle_status', [
   'consumed',
 ]);
 
+export const devicePlatformEnum = pgEnum('device_platform', ['android', 'ios']);
+
 // Re-exported as plain arrays so DTOs (class-validator @IsIn) and other
 // non-Drizzle code can reference the same source of truth without importing
 // pg-core enum internals.
@@ -59,6 +61,7 @@ export const aiProviderValues = aiProviderEnum.enumValues;
 export const aiUsageValues = aiUsageEnum.enumValues;
 export const wineColorValues = wineColorEnum.enumValues;
 export const bottleStatusValues = bottleStatusEnum.enumValues;
+export const devicePlatformValues = devicePlatformEnum.enumValues;
 
 // ---------------------------------------------------------------------------
 // Household / Users
@@ -139,6 +142,14 @@ export const cellarUnits = pgTable('cellar_units', {
   name: text('name').notNull(),
   rowCount: integer('row_count').notNull(),
   columnCount: integer('column_count').notNull(),
+  // Optional: a household with several units (e.g. "Cave rouges" / "Cave
+  // blancs") can dedicate one to a wine color -- the cross-unit placement
+  // suggestion (CellarService.suggestAcrossUnits) then strongly favors a
+  // matching unit and avoids a mismatched one, without making it a hard
+  // rule (an overflow bottle can still land there if nothing else fits).
+  // Null means "mixed" -- no preference, ranked purely on in-row affinity
+  // as before.
+  preferredColor: wineColorEnum('preferred_color'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -191,6 +202,50 @@ export const bottles = pgTable('bottles', {
   labelPhotoUrl: text('label_photo_url'),
   status: bottleStatusEnum('status').notNull().default('in_cellar'),
   notes: text('notes'),
+  // Sommelier-style tasting profile (nose/palate/sweetness), distinct from
+  // both `notes` (origin/style blurb) and the household's own tastingNotes
+  // (their personal rating/comment once they've actually drunk it).
+  tastingNose: text('tasting_nose'),
+  tastingPalate: text('tasting_palate'),
+  tastingSweetness: text('tasting_sweetness'),
+  // "Quart de tour" reminder (classic advice for a bottle aged a long time
+  // lying down under natural cork: give it a quarter turn every few months
+  // so sediment/the cork don't always settle on the same side). Null means
+  // "never explicitly turned" -- BottleService falls back to createdAt as
+  // the baseline. lastTurnReminderSentAt tracks the last push notification
+  // sent for this bottle so the daily job doesn't re-notify every single
+  // day once it's overdue (see NotificationsModule).
+  lastTurnedAt: timestamp('last_turned_at', { withTimezone: true }),
+  lastTurnReminderSentAt: timestamp('last_turn_reminder_sent_at', { withTimezone: true }),
+  // "Apogée" (drinking window) alerts: one push when the bottle enters its
+  // window (drinkFromYear reached) and one when it's about to leave it
+  // (drinkUntilYear reached) -- each sent at most once ever per bottle,
+  // tracked independently so re-editing one date doesn't silently
+  // re-trigger the other.
+  apogeeStartReminderSentAt: timestamp('apogee_start_reminder_sent_at', { withTimezone: true }),
+  apogeeEndReminderSentAt: timestamp('apogee_end_reminder_sent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ---------------------------------------------------------------------------
+// Push notification device tokens (FCM)
+// ---------------------------------------------------------------------------
+
+export const deviceTokens = pgTable('device_tokens', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id')
+    .notNull()
+    .references(() => households.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  platform: devicePlatformEnum('platform').notNull().default('android'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -288,6 +343,7 @@ export const householdsRelations = relations(households, ({ many }) => ({
   bottles: many(bottles),
   pairingSuggestions: many(pairingSuggestions),
   wishlistItems: many(wishlistItems),
+  deviceTokens: many(deviceTokens),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -296,6 +352,18 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [households.id],
   }),
   tastingNotes: many(tastingNotes),
+  deviceTokens: many(deviceTokens),
+}));
+
+export const deviceTokensRelations = relations(deviceTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [deviceTokens.userId],
+    references: [users.id],
+  }),
+  household: one(households, {
+    fields: [deviceTokens.householdId],
+    references: [households.id],
+  }),
 }));
 
 export const cellarUnitsRelations = relations(

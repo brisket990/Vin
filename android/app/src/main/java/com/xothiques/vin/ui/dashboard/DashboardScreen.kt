@@ -16,11 +16,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.xothiques.vin.data.remote.dto.BottleDto
 import com.xothiques.vin.data.remote.dto.DashboardStatsDto
 import com.xothiques.vin.data.remote.dto.RecentTastingDto
@@ -42,6 +46,20 @@ private val COLOR_LABELS = mapOf(
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
+
+    // This tab's ViewModel survives switching to other bottom-nav tabs, so it
+    // only ever loaded once in init{} -- meaning stats went stale the moment
+    // a bottle was deleted/consumed/relocated elsewhere and this tab was
+    // revisited. Re-fetch whenever the tab comes back into view, same as the
+    // cellar grid screen does.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.load()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {

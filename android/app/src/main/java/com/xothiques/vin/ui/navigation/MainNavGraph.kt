@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.xothiques.vin.ui.bottle.BottleDetailScreen
 import com.xothiques.vin.ui.bottle.BottleFormScreen
+import com.xothiques.vin.ui.bottle.BottleListScreen
 import com.xothiques.vin.ui.cellar.CellarGridScreen
 import com.xothiques.vin.ui.dashboard.DashboardScreen
 import com.xothiques.vin.ui.pairing.PairingScreen
@@ -69,6 +70,15 @@ fun MainNavGraph() {
                             navController.navigate(MainRoutes.bottleForm(locationId))
                         },
                         onScan = { navController.navigate(MainRoutes.scan()) },
+                        onOpenBottleList = { navController.navigate(MainRoutes.BOTTLES) },
+                    )
+                }
+                composable(MainRoutes.BOTTLES) {
+                    BottleListScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenBottle = { bottleId ->
+                            navController.navigate(MainRoutes.bottleDetail(bottleId))
+                        },
                     )
                 }
                 composable(MainRoutes.WISHLIST) { WishlistScreen() }

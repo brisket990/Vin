@@ -238,7 +238,7 @@ private fun SettingsContent(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
-                    "Code d'invitation — partage-le avec ton/ta partenaire pour qu'iel rejoigne la cave :",
+                    "Code d'invitation — partage-le pour que ton/ta partenaire rejoigne la cave :",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {

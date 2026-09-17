@@ -4,13 +4,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, gte, ilike, lte, or, type SQL } from 'drizzle-orm';
+import { and, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDb } from '../db/drizzle.module.js';
 import { bottles, cellarLocations, cellarUnits, tastingNotes } from '../db/schema.js';
 import type { CreateBottleDto } from './dto/create-bottle.dto.js';
 import type { UpdateBottleDto } from './dto/update-bottle.dto.js';
 import type { QueryBottlesDto } from './dto/query-bottles.dto.js';
 import type { ConsumeBottleDto } from './dto/consume-bottle.dto.js';
+
+/** Classic advice for a bottle aged a long time lying down under natural
+ *  cork: give it a quarter turn every few months so sediment/the cork don't
+ *  always settle on the same side. */
+export const TURN_REMINDER_THRESHOLD_DAYS = 90;
+
+/** Minimum gap between two push reminders for the *same* bottle, so the
+ *  daily job doesn't nag every single day once a bottle is overdue. */
+export const TURN_REMINDER_COOLDOWN_DAYS = 7;
 
 @Injectable()
 export class BottleService {
@@ -78,6 +87,9 @@ export class BottleService {
         locationId: dto.locationId,
         labelPhotoUrl: dto.labelPhotoUrl,
         notes: dto.notes,
+        tastingNose: dto.tastingNose,
+        tastingPalate: dto.tastingPalate,
+        tastingSweetness: dto.tastingSweetness,
       })
       .returning();
 
@@ -211,5 +223,168 @@ export class BottleService {
 
       return { bottle: updated, tastingNote: note };
     });
+  }
+
+  /** Records that a bottle was just given its quarter turn, resetting both
+   *  the overdue baseline and the reminder cooldown. */
+  async turn(householdId: string, id: string) {
+    await this.getOwnedBottleOrThrow(householdId, id);
+    const [bottle] = await this.db
+      .update(bottles)
+      .set({ lastTurnedAt: new Date(), lastTurnReminderSentAt: null, updatedAt: new Date() })
+      .where(and(eq(bottles.id, id), eq(bottles.householdId, householdId)))
+      .returning();
+    return bottle;
+  }
+
+  /** Every in-cellar bottle overdue for a quarter turn (see
+   *  TURN_REMINDER_THRESHOLD_DAYS) -- used by the app to show which bottles
+   *  need attention, regardless of whether a push reminder was already sent. */
+  async findNeedingTurn(householdId: string) {
+    return this.db
+      .select()
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.householdId, householdId),
+          eq(bottles.status, 'in_cellar'),
+          sql`coalesce(${bottles.lastTurnedAt}, ${bottles.createdAt}) <= now() - (${TURN_REMINDER_THRESHOLD_DAYS} * interval '1 day')`,
+        ),
+      )
+      .orderBy(bottles.createdAt);
+  }
+
+  /** Overdue bottles that additionally haven't had a push reminder sent
+   *  recently (see TURN_REMINDER_COOLDOWN_DAYS) -- used by the daily job so
+   *  it doesn't re-notify about the same bottle every day. */
+  async findNeedingTurnReminder(householdId: string) {
+    return this.db
+      .select()
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.householdId, householdId),
+          eq(bottles.status, 'in_cellar'),
+          sql`coalesce(${bottles.lastTurnedAt}, ${bottles.createdAt}) <= now() - (${TURN_REMINDER_THRESHOLD_DAYS} * interval '1 day')`,
+          sql`(${bottles.lastTurnReminderSentAt} IS NULL OR ${bottles.lastTurnReminderSentAt} <= now() - (${TURN_REMINDER_COOLDOWN_DAYS} * interval '1 day'))`,
+        ),
+      )
+      .orderBy(bottles.createdAt);
+  }
+
+  /** Distinct household ids that currently have at least one bottle due a
+   *  push reminder -- lets the daily job avoid iterating every household in
+   *  the database when most have nothing overdue. */
+  async findHouseholdIdsNeedingTurnReminder(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ householdId: bottles.householdId })
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.status, 'in_cellar'),
+          sql`coalesce(${bottles.lastTurnedAt}, ${bottles.createdAt}) <= now() - (${TURN_REMINDER_THRESHOLD_DAYS} * interval '1 day')`,
+          sql`(${bottles.lastTurnReminderSentAt} IS NULL OR ${bottles.lastTurnReminderSentAt} <= now() - (${TURN_REMINDER_COOLDOWN_DAYS} * interval '1 day'))`,
+        ),
+      );
+    return rows.map((r) => r.householdId);
+  }
+
+  async markTurnReminderSent(bottleIds: string[]) {
+    if (bottleIds.length === 0) return;
+    await this.db
+      .update(bottles)
+      .set({ lastTurnReminderSentAt: new Date() })
+      .where(inArray(bottles.id, bottleIds));
+  }
+
+  /** In-cellar bottles whose drinking window just started (current year has
+   *  reached drinkFromYear) and that haven't had their one-time "entering
+   *  the window" push sent yet. Bottles without a drinkFromYear never
+   *  match. */
+  async findNeedingApogeeStartReminder(householdId: string) {
+    return this.db
+      .select()
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.householdId, householdId),
+          eq(bottles.status, 'in_cellar'),
+          sql`${bottles.drinkFromYear} IS NOT NULL`,
+          sql`${bottles.drinkFromYear} <= extract(year from now())`,
+          sql`${bottles.apogeeStartReminderSentAt} IS NULL`,
+        ),
+      )
+      .orderBy(bottles.createdAt);
+  }
+
+  /** In-cellar bottles reaching the last recommended year of their drinking
+   *  window (current year has reached drinkUntilYear) and that haven't had
+   *  their one-time "last chance" push sent yet. Bottles without a
+   *  drinkUntilYear never match. */
+  async findNeedingApogeeEndReminder(householdId: string) {
+    return this.db
+      .select()
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.householdId, householdId),
+          eq(bottles.status, 'in_cellar'),
+          sql`${bottles.drinkUntilYear} IS NOT NULL`,
+          sql`${bottles.drinkUntilYear} <= extract(year from now())`,
+          sql`${bottles.apogeeEndReminderSentAt} IS NULL`,
+        ),
+      )
+      .orderBy(bottles.createdAt);
+  }
+
+  /** Distinct household ids with at least one bottle due its one-time
+   *  "entering the window" push -- lets the daily job skip households with
+   *  nothing to report. */
+  async findHouseholdIdsNeedingApogeeStartReminder(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ householdId: bottles.householdId })
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.status, 'in_cellar'),
+          sql`${bottles.drinkFromYear} IS NOT NULL`,
+          sql`${bottles.drinkFromYear} <= extract(year from now())`,
+          sql`${bottles.apogeeStartReminderSentAt} IS NULL`,
+        ),
+      );
+    return rows.map((r) => r.householdId);
+  }
+
+  /** Same as findHouseholdIdsNeedingApogeeStartReminder but for the "last
+   *  chance" push. */
+  async findHouseholdIdsNeedingApogeeEndReminder(): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ householdId: bottles.householdId })
+      .from(bottles)
+      .where(
+        and(
+          eq(bottles.status, 'in_cellar'),
+          sql`${bottles.drinkUntilYear} IS NOT NULL`,
+          sql`${bottles.drinkUntilYear} <= extract(year from now())`,
+          sql`${bottles.apogeeEndReminderSentAt} IS NULL`,
+        ),
+      );
+    return rows.map((r) => r.householdId);
+  }
+
+  async markApogeeStartReminderSent(bottleIds: string[]) {
+    if (bottleIds.length === 0) return;
+    await this.db
+      .update(bottles)
+      .set({ apogeeStartReminderSentAt: new Date() })
+      .where(inArray(bottles.id, bottleIds));
+  }
+
+  async markApogeeEndReminderSent(bottleIds: string[]) {
+    if (bottleIds.length === 0) return;
+    await this.db
+      .update(bottles)
+      .set({ apogeeEndReminderSentAt: new Date() })
+      .where(inArray(bottles.id, bottleIds));
   }
 }

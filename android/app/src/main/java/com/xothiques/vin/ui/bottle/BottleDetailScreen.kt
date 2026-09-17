@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.xothiques.vin.data.remote.dto.BottleDto
+import com.xothiques.vin.data.remote.dto.FoodPairingResultDto
 import com.xothiques.vin.data.remote.resolvePhotoUrl
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
@@ -58,6 +62,7 @@ fun BottleDetailScreen(
     val bottleState by viewModel.bottleState.collectAsState()
     val consumeState by viewModel.consumeState.collectAsState()
     val deleteState by viewModel.deleteState.collectAsState()
+    val foodPairingState by viewModel.foodPairingState.collectAsState()
     var showConsumeDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -80,6 +85,15 @@ fun BottleDetailScreen(
                     val bottle = (bottleState as? UiState.Success)?.data
                     if (bottle != null) {
                         Row {
+                            if (bottle.status == "in_cellar") {
+                                IconButton(onClick = { showConsumeDialog = true }) {
+                                    Icon(
+                                        Icons.Filled.WineBar,
+                                        contentDescription = "Dégustée",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                    )
+                                }
+                            }
                             IconButton(onClick = { onEdit(bottle.id) }) {
                                 Icon(
                                     Icons.Filled.Edit,
@@ -105,6 +119,8 @@ fun BottleDetailScreen(
                     is UiState.Success -> BottleDetailContent(
                         bottle = state.data,
                         onConsume = { showConsumeDialog = true },
+                        foodPairingState = foodPairingState,
+                        onSuggestFoodPairing = viewModel::suggestFoodPairing,
                     )
                 }
             }
@@ -138,10 +154,16 @@ fun BottleDetailScreen(
 }
 
 @Composable
-private fun BottleDetailContent(bottle: BottleDto, onConsume: () -> Unit) {
+private fun BottleDetailContent(
+    bottle: BottleDto,
+    onConsume: () -> Unit,
+    foodPairingState: UiState<FoodPairingResultDto>?,
+    onSuggestFoodPairing: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -199,11 +221,76 @@ private fun BottleDetailContent(bottle: BottleDto, onConsume: () -> Unit) {
             Text(bottle.notes)
         }
 
+        if (!bottle.tastingNose.isNullOrBlank() || !bottle.tastingPalate.isNullOrBlank() ||
+            !bottle.tastingSweetness.isNullOrBlank()
+        ) {
+            Card(shape = MaterialTheme.shapes.large) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Profil de dégustation", style = MaterialTheme.typography.titleSmall)
+                    if (!bottle.tastingNose.isNullOrBlank()) InfoRow("Nez", bottle.tastingNose)
+                    if (!bottle.tastingPalate.isNullOrBlank()) InfoRow("Bouche", bottle.tastingPalate)
+                    if (!bottle.tastingSweetness.isNullOrBlank()) InfoRow("Sucrosité", bottle.tastingSweetness)
+                }
+            }
+        }
+
+        if (bottle.status == "in_cellar") {
+            OutlinedButton(
+                onClick = onSuggestFoodPairing,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = foodPairingState !is UiState.Loading,
+            ) {
+                if (foodPairingState is UiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Suggérer un accord mets-vin pour cette bouteille")
+                }
+            }
+        }
+
+        if (foodPairingState != null) {
+            FoodPairingCard(foodPairingState)
+        }
+
         if (bottle.status == "in_cellar") {
             Button(onClick = onConsume, modifier = Modifier.fillMaxWidth()) {
                 Text("Marquer comme bue")
             }
         }
+    }
+}
+
+@Composable
+private fun FoodPairingCard(state: UiState<FoodPairingResultDto>) {
+    when (state) {
+        is UiState.Error -> {
+            Card(shape = MaterialTheme.shapes.large) {
+                Text(
+                    state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+        is UiState.Success -> {
+            Card(shape = MaterialTheme.shapes.large) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Accords suggérés", style = MaterialTheme.typography.titleSmall)
+                    state.data.suggestedDishes.forEach { dish ->
+                        Text("• $dish", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (state.data.reasoning.isNotBlank()) {
+                        Text(
+                            state.data.reasoning,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
+        else -> Unit
     }
 }
 

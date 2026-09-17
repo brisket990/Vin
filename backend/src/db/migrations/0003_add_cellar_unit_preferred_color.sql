@@ -1,0 +1,1 @@
+ALTER TABLE "cellar_units" ADD COLUMN "preferred_color" "wine_color";
