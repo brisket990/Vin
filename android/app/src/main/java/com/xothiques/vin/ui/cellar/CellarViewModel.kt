@@ -74,10 +74,34 @@ class CellarViewModel @Inject constructor(
         }
     }
 
-    /** Call after returning from the bottle form/detail screens, in case a location was just assigned. */
+    /** Call after returning from the bottle form/detail screens, in case a
+     *  location was just assigned. Also fired on every ON_RESUME of the
+     *  cellar screen (it stays alive underneath Scan/Ajouter/Détail on the
+     *  back stack), so a plain [loadUnits] here would flash the list back to
+     *  [UiState.Loading] on every return trip -- which unmounts and remounts
+     *  the grid's LazyColumn and resets the user's scroll position even
+     *  though nothing actually changed. Once the units are already loaded,
+     *  refresh them silently in place instead; only a genuine first load (or
+     *  a retry from the error screen) goes through [loadUnits]. */
     fun refresh() {
-        loadUnits()
+        val current = _unitsState.value
+        if (current is UiState.Success) {
+            reloadUnitsSilently()
+        } else {
+            loadUnits()
+        }
         loadUnassignedBottles()
+    }
+
+    private fun reloadUnitsSilently() {
+        viewModelScope.launch {
+            try {
+                _unitsState.value = UiState.Success(cellarRepository.listUnits())
+            } catch (t: Throwable) {
+                // Keep showing the last known-good list rather than surfacing
+                // a transient background-refresh failure on top of it.
+            }
+        }
     }
 
     fun resetCreateUnitState() {

@@ -1,9 +1,10 @@
-=== build started 17/09/2026 17:41:55,19
+=== build started 17/09/2026 18:03:49,92
 Removing old extracted android folder if present ...
-Extracting vin-android-v26.zip ...
+Extracting vin-android-v27.zip ...
 local.properties:
 sdk.dir=C:/Users/G-BJN-5322658/android-sdk
 ANDROID_HOME=[C:\Users\G-BJN-5322658\android-sdk]
 JAVA_HOME=[C:\Users\G-BJN-5322658\jdk17]
 No Gradle daemons are running.
 To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.9/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
