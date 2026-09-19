@@ -13,4 +13,6 @@ class NotificationsRepository @Inject constructor(
         notificationsApi.registerDevice(RegisterDeviceRequest(token, platform))
 
     suspend fun unregisterDevice(token: String) = notificationsApi.unregisterDevice(token)
+
+    suspend fun sendTest() = notificationsApi.sendTest()
 }

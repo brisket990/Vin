@@ -35,6 +35,31 @@ describe('NotificationsService', () => {
     const { household } = await createTestHousehold(db, 'NoFirebase');
     await expect(
       notificationsService.sendToHousehold(household.id, { title: 'Test', body: 'Test' }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ configured: false, deviceCount: 0, successCount: 0 });
+  });
+
+  // Coolify (and some other Docker-based hosts) inject every environment
+  // variable into the image build as a raw, unquoted Dockerfile ARG line --
+  // this key's JSON (quotes, braces, embedded newlines in `private_key`)
+  // breaks that line's syntax and fails the build outright. Base64 avoids
+  // the whole class of parsing failures (see NotificationsService.decodeServiceAccountJson),
+  // so it must be accepted transparently alongside plain JSON.
+  it('accepts a base64-encoded FIREBASE_SERVICE_ACCOUNT_JSON', async () => {
+    const { household } = await createTestHousehold(db, 'Base64Cfg');
+    // Structurally valid JSON but not a real Firebase credential -- getApp()
+    // still degrades to a safe no-op (configured: false) once cert()/
+    // initializeApp() rejects it for missing required claims, same as any
+    // other invalid config. The point of this test is that the base64
+    // decoding + JSON.parse succeed rather than mis-parsing the value.
+    const encoded = Buffer.from(JSON.stringify({ not: 'a real service account' })).toString(
+      'base64',
+    );
+    const service = new NotificationsService(
+      db,
+      new ConfigService({ FIREBASE_SERVICE_ACCOUNT_JSON: encoded }),
+    );
+    await expect(
+      service.sendToHousehold(household.id, { title: 'Test', body: 'Test' }),
+    ).resolves.toEqual({ configured: false, deviceCount: 0, successCount: 0 });
   });
 });

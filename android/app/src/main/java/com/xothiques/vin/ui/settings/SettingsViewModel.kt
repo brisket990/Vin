@@ -6,8 +6,10 @@ import com.xothiques.vin.data.local.Session
 import com.xothiques.vin.data.local.SessionManager
 import com.xothiques.vin.data.remote.dto.HouseholdDto
 import com.xothiques.vin.data.remote.dto.HouseholdSummaryDto
+import com.xothiques.vin.data.remote.dto.TestNotificationResultDto
 import com.xothiques.vin.data.repository.AuthRepository
 import com.xothiques.vin.data.repository.HouseholdRepository
+import com.xothiques.vin.data.repository.NotificationsRepository
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.toUserMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,6 +25,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val householdRepository: HouseholdRepository,
     private val authRepository: AuthRepository,
+    private val notificationsRepository: NotificationsRepository,
     sessionManager: SessionManager,
 ) : ViewModel() {
 
@@ -189,6 +192,27 @@ class SettingsViewModel @Inject constructor(
     fun signOut() {
         viewModelScope.launch {
             authRepository.signOut()
+        }
+    }
+
+    private val _testNotificationState = MutableStateFlow<UiState<TestNotificationResultDto>?>(null)
+    val testNotificationState: StateFlow<UiState<TestNotificationResultDto>?> = _testNotificationState.asStateFlow()
+
+    fun resetTestNotificationState() {
+        _testNotificationState.value = null
+    }
+
+    /** Sends an immediate test push, so the user can verify the whole chain
+     *  (Firebase configured on the backend + a real google-services.json on
+     *  this phone) without waiting for tomorrow's 9am reminder cron. */
+    fun sendTestNotification() {
+        viewModelScope.launch {
+            _testNotificationState.value = UiState.Loading
+            _testNotificationState.value = try {
+                UiState.Success(notificationsRepository.sendTest())
+            } catch (t: Throwable) {
+                UiState.Error(t.toUserMessage())
+            }
         }
     }
 }

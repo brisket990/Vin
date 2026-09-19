@@ -63,6 +63,7 @@ import com.xothiques.vin.data.local.Session
 import com.xothiques.vin.data.remote.dto.HouseholdDto
 import com.xothiques.vin.data.remote.dto.HouseholdSummaryDto
 import com.xothiques.vin.data.remote.dto.ImportCsvResultDto
+import com.xothiques.vin.data.remote.dto.TestNotificationResultDto
 import com.xothiques.vin.ui.common.FullScreenError
 import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
@@ -91,6 +92,7 @@ fun SettingsScreen(
     val createHouseholdState by viewModel.createHouseholdState.collectAsState()
     val joinHouseholdState by viewModel.joinHouseholdState.collectAsState()
     val deleteHouseholdState by viewModel.deleteHouseholdState.collectAsState()
+    val testNotificationState by viewModel.testNotificationState.collectAsState()
     var showAddHouseholdChooser by remember { mutableStateOf(false) }
     var showCreateHouseholdDialog by remember { mutableStateOf(false) }
     var showJoinHouseholdDialog by remember { mutableStateOf(false) }
@@ -177,6 +179,8 @@ fun SettingsScreen(
                                 ),
                             )
                         },
+                        testNotificationState = testNotificationState,
+                        onSendTestNotification = viewModel::sendTestNotification,
                         onSignOut = {
                             viewModel.signOut()
                             onSignedOut()
@@ -353,6 +357,8 @@ private fun SettingsContent(
     onExportPdf: () -> Unit,
     importState: UiState<ImportCsvResultDto>?,
     onImportCsv: () -> Unit,
+    testNotificationState: UiState<TestNotificationResultDto>?,
+    onSendTestNotification: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -453,6 +459,8 @@ private fun SettingsContent(
             onClick = onOpenAiProviderSettings,
         )
 
+        NotificationsTestCard(state = testNotificationState, onSendTest = onSendTestNotification)
+
         Card(shape = MaterialTheme.shapes.large) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Export", style = MaterialTheme.typography.titleMedium)
@@ -507,6 +515,54 @@ private fun SettingsContent(
         }
 
         AboutSection()
+    }
+}
+
+/** Lets the user fire an immediate test push instead of waiting for the
+ *  daily 9am reminder cron (and a bottle that actually qualifies for one)
+ *  to find out whether notifications are set up correctly end to end. The
+ *  result message is deliberately specific about which half is missing --
+ *  server config vs. this phone's registration -- since NOTIFICATIONS_SETUP.md
+ *  has two independent steps and "no notification arrived" alone doesn't
+ *  say which one still needs doing. */
+@Composable
+private fun NotificationsTestCard(
+    state: UiState<TestNotificationResultDto>?,
+    onSendTest: () -> Unit,
+) {
+    Card(shape = MaterialTheme.shapes.large) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Notifications", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Envoie une notification de test pour vérifier que les rappels (quart de tour, apogée) te parviendront bien.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            when (state) {
+                is UiState.Error -> Text(state.message, color = MaterialTheme.colorScheme.error)
+                is UiState.Success -> {
+                    val result = state.data
+                    val (message, isError) = when {
+                        !result.configured -> "Le serveur n'a pas encore de Firebase configuré (variable FIREBASE_SERVICE_ACCOUNT_JSON manquante ou invalide)." to true
+                        result.deviceCount == 0 -> "Aucun appareil enregistré pour ce foyer -- reconnecte-toi dans l'app (avec le vrai google-services.json installé) pour qu'un token soit envoyé au serveur." to true
+                        result.successCount == 0 -> "${result.deviceCount} appareil(s) enregistré(s), mais aucun n'a accepté la notification -- reconnecte-toi pour renouveler le token." to true
+                        else -> "Notification envoyée à ${result.successCount}/${result.deviceCount} appareil(s) -- elle devrait arriver dans quelques secondes." to false
+                    }
+                    Text(message, color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                }
+                else -> Unit
+            }
+            OutlinedButton(
+                onClick = onSendTest,
+                enabled = state !is UiState.Loading,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (state is UiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Text("Envoyer une notification de test")
+                }
+            }
+        }
     }
 }
 

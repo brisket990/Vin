@@ -21,4 +21,20 @@ export class NotificationsController {
   unregister(@Param('token') token: string) {
     return this.notificationsService.unregisterDevice(token);
   }
+
+  /** Sends an immediate test push to every device registered for the
+   *  caller's household -- lets the user verify the whole chain (Firebase
+   *  config on the backend + real google-services.json on the phone) works,
+   *  without waiting for the daily 9am cron or a bottle that actually
+   *  qualifies for a reminder. The returned summary (configured/deviceCount/
+   *  successCount) is enough for the app to explain exactly what to fix if
+   *  nothing arrives. */
+  @Post('test')
+  sendTest(@CurrentUser() user: AuthenticatedUser) {
+    return this.notificationsService.sendToHousehold(user.householdId, {
+      title: 'Notification de test',
+      body: 'Si tu vois ceci, les notifications push fonctionnent.',
+      data: { type: 'test' },
+    });
+  }
 }

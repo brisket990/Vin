@@ -46,19 +46,37 @@ notifications au nom du projet Firebase.
 
 ## 4. Configurer le backend sur Coolify
 
-1. Ouvre le contenu du fichier JSON téléchargé à l'étape précédente avec un
-   éditeur de texte, et copie tout son contenu (c'est un objet JSON sur
-   plusieurs lignes).
-2. Dans Coolify, ouvre le service backend du projet Vin → onglet
+⚠️ **Important : encoder la clé en base64 avant de la coller dans Coolify.**
+Coolify construit l'image en injectant chaque variable d'environnement du
+service directement dans le `Dockerfile` sous forme d'une ligne `ARG NOM=VALEUR`
+brute, non protégée par des guillemets. Le JSON de cette clé contient des
+guillemets, des accolades et des retours à la ligne (dans `private_key`), ce
+qui casse cette ligne et fait échouer le build avec une erreur du style
+`failed to solve: ... unexpected end of statement while looking for matching
+double-quote`. Le backend (depuis cette version) accepte la clé encodée en
+base64 pour éviter complètement ce problème -- l'encodage ne change rien à la
+clé elle-même, juste sa représentation en texte.
+
+1. Ouvre le fichier JSON téléchargé à l'étape précédente.
+2. Encode-le en base64, sur une seule ligne. Le plus simple sans rien
+   installer : ouvre les outils de développement de n'importe quel
+   navigateur (touche F12), onglet **Console**, et tape (tout reste en
+   local, rien n'est envoyé nulle part) :
+   ```js
+   btoa(JSON.stringify(/* colle ici tout le contenu du fichier JSON */))
+   ```
+   Appuie sur Entrée : la console affiche la chaîne encodée entre guillemets
+   -- c'est elle qu'il faut copier (sans les guillemets qui l'entourent).
+   (Alternative en ligne de commande si tu préfères : `base64 -w0
+   fichier.json` sous Linux, `base64 -i fichier.json | tr -d '\n'` sous
+   macOS.)
+3. Dans Coolify, ouvre le service backend du projet Vin → onglet
    **Environment Variables**.
-3. Ajoute une nouvelle variable :
+4. Ajoute une nouvelle variable :
    - Nom : `FIREBASE_SERVICE_ACCOUNT_JSON`
-   - Valeur : colle tout le contenu du fichier JSON (en une seule ligne si
-     Coolify n'accepte pas les sauts de ligne dans une valeur -- la plupart
-     des interfaces gèrent très bien le JSON multi-lignes collé tel quel,
-     sinon minifie-le d'abord, par exemple avec un outil en ligne "JSON
-     minify").
-4. Sauvegarde, puis relance un déploiement du service (redeploy) pour que la
+   - Valeur : la chaîne base64 obtenue à l'étape 2 (une seule ligne, sans
+     guillemets ni retour à la ligne).
+5. Sauvegarde, puis relance un déploiement du service (redeploy) pour que la
    variable soit prise en compte.
 
 Sans cette variable, le backend démarre normalement mais n'enverra aucune
@@ -79,11 +97,22 @@ démarrage -- rien de spécial à faire au-delà du redeploy habituel.
    (Android 13+) -- accepte-la.
 2. Le backend enregistre normalement le token de ton téléphone au démarrage
    de l'app.
-3. Le rappel de quart de tour se déclenche automatiquement chaque jour à
+3. **Le plus rapide pour vérifier que tout est branché, sans attendre le
+   cron du lendemain** : Réglages → carte "Notifications" → bouton "Envoyer
+   une notification de test". La réponse te dit précisément où ça coince le
+   cas échéant :
+   - *"Le serveur n'a pas encore de Firebase configuré"* → revoir l'étape 4
+     (variable `FIREBASE_SERVICE_ACCOUNT_JSON`), puis redeployer.
+   - *"Aucun appareil enregistré pour ce foyer"* → reconnecte-toi dans
+     l'app (avec le vrai `google-services.json` installé) pour qu'un token
+     soit envoyé au serveur.
+   - *"Notification envoyée à N/N appareil(s)"* → tout fonctionne, la
+     notification devrait apparaître sur ton téléphone dans la foulée.
+4. Le rappel de quart de tour se déclenche automatiquement chaque jour à
    9h (heure du serveur) pour toute bouteille en cave non tournée depuis 90
    jours ou plus, avec un rappel maximum tous les 7 jours par bouteille
    pour éviter le spam.
-4. Tu peux aussi voir directement dans l'app, sur la fiche d'une bouteille,
+5. Tu peux aussi voir directement dans l'app, sur la fiche d'une bouteille,
    depuis quand elle n'a pas été tournée, avec un bouton "Tournée
    aujourd'hui" pour réinitialiser le compteur -- et un petit repère dans la
    liste des bouteilles pour repérer d'un coup d'œil celles qui ont besoin
