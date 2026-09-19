@@ -72,11 +72,23 @@ fun MainNavGraph() {
                             navController.navigate(MainRoutes.bottleForm(locationId))
                         },
                         onScan = { navController.navigate(MainRoutes.scan()) },
-                        onOpenBottleList = { navController.navigate(MainRoutes.BOTTLES) },
+                        onOpenBottleList = { color ->
+                            navController.navigate(MainRoutes.bottles(color))
+                        },
                     )
                 }
-                composable(MainRoutes.BOTTLES) {
+                composable(
+                    route = MainRoutes.BOTTLES,
+                    arguments = listOf(
+                        navArgument("color") {
+                            type = NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        },
+                    ),
+                ) { backStackEntry ->
                     BottleListScreen(
+                        colorFilter = backStackEntry.arguments?.getString("color"),
                         onBack = { navController.popBackStack() },
                         onOpenBottle = { bottleId ->
                             navController.navigate(MainRoutes.bottleDetail(bottleId))

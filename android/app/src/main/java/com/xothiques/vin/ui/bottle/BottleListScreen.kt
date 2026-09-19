@@ -40,6 +40,7 @@ import com.xothiques.vin.ui.common.FullScreenLoading
 import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.common.VinListRow
+import com.xothiques.vin.ui.theme.WINE_COLOR_LABELS
 import com.xothiques.vin.ui.theme.wineColorFor
 import com.xothiques.vin.util.needsTurn
 
@@ -47,13 +48,17 @@ import com.xothiques.vin.util.needsTurn
  * Flat, scrollable listing of every bottle currently in the cellar -- the
  * grid view is great for seeing physical placement, but browsing/searching
  * the collection as a plain list is faster than scanning a grid of casiers.
- * Reached from the cave screen's header.
+ * Reached from the cave screen's header (no filter), or from one of the
+ * "Ma collection" rows there (e.g. "Vins Rouges"), which passes [colorFilter]
+ * so only bottles of that color are shown -- the search field stays
+ * available on top of it to narrow down further within that color.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottleListScreen(
     onBack: () -> Unit,
     onOpenBottle: (String) -> Unit,
+    colorFilter: String? = null,
     viewModel: BottleListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
@@ -70,16 +75,22 @@ fun BottleListScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val title = colorFilter?.let { WINE_COLOR_LABELS[it] } ?: "Liste des bouteilles"
+
     Scaffold { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            VinHeader(title = "Liste des bouteilles", onBack = onBack)
+            VinHeader(title = title, onBack = onBack)
 
             Box(modifier = Modifier.fillMaxSize()) {
                 when (val s = state) {
                     is UiState.Loading -> FullScreenLoading()
                     is UiState.Error -> FullScreenError(s.message, onRetry = viewModel::load)
                     is UiState.Success -> BottleListContent(
-                        bottles = s.data,
+                        bottles = if (colorFilter != null) {
+                            s.data.filter { it.color == colorFilter }
+                        } else {
+                            s.data
+                        },
                         query = query,
                         onQueryChange = { query = it },
                         onOpenBottle = onOpenBottle,

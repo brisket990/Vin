@@ -9,8 +9,12 @@ object AuthRoutes {
 
 object MainRoutes {
     const val CELLAR = "cellar"
-    /** Flat, scrollable list of every bottle in the cellar (vs. the grid view). */
-    const val BOTTLES = "bottles"
+    /** Flat, scrollable list of every bottle in the cellar (vs. the grid view).
+     *  Optionally pre-filtered to one wine color -- reached either from the
+     *  cave header (no filter) or by tapping one of the "Ma collection" rows
+     *  (e.g. "Vins Rouges") on the cave screen. */
+    const val BOTTLES = "bottles?color={color}"
+    fun bottles(color: String? = null) = if (color != null) "bottles?color=$color" else "bottles"
     const val PAIRING = "pairing"
     const val SETTINGS = "settings"
     const val WISHLIST = "wishlist"

@@ -88,3 +88,15 @@ fun wineColorFor(color: String) = when (color) {
     "fortified" -> WineColorFortified
     else -> WineColorRed
 }
+
+/** Maps a Bottle.color enum value to its French display label -- shared by
+ *  the cave screen's "Ma collection" breakdown and the filtered bottle list
+ *  it links to, so both always agree on the wording. */
+val WINE_COLOR_LABELS: Map<String, String> = mapOf(
+    "red" to "Vins Rouges",
+    "white" to "Vins Blancs",
+    "rose" to "Vins Rosés",
+    "sparkling" to "Vins Effervescents",
+    "sweet" to "Vins Doux",
+    "fortified" to "Vins Fortifiés",
+)

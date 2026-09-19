@@ -63,6 +63,7 @@ import com.xothiques.vin.ui.common.UiState
 import com.xothiques.vin.ui.common.VinActionCard
 import com.xothiques.vin.ui.common.VinHeader
 import com.xothiques.vin.ui.common.VinListRow
+import com.xothiques.vin.ui.theme.WINE_COLOR_LABELS
 import com.xothiques.vin.ui.theme.wineColorFor
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -71,7 +72,7 @@ fun CellarGridScreen(
     onOpenBottle: (String) -> Unit,
     onAddBottle: (locationId: String?) -> Unit,
     onScan: () -> Unit,
-    onOpenBottleList: () -> Unit,
+    onOpenBottleList: (color: String?) -> Unit,
     viewModel: CellarViewModel = hiltViewModel(),
 ) {
     val unitsState by viewModel.unitsState.collectAsState()
@@ -128,7 +129,7 @@ fun CellarGridScreen(
                 subtitle = if (units.isNotEmpty()) "$occupied bouteilles rangées • $totalCells casiers" else null,
                 trailing = {
                     Row {
-                        IconButton(onClick = onOpenBottleList) {
+                        IconButton(onClick = { onOpenBottleList(null) }) {
                             Icon(
                                 Icons.Filled.FormatListBulleted,
                                 contentDescription = "Voir la liste des bouteilles",
@@ -171,6 +172,7 @@ fun CellarGridScreen(
                                 onScan = onScan,
                                 onEditUnit = { editingUnit = it },
                                 onDeleteUnit = { unitPendingDelete = it },
+                                onOpenColorList = onOpenBottleList,
                             )
                         }
                     }
@@ -486,15 +488,6 @@ private fun DeleteUnitDialog(
     )
 }
 
-private val WINE_COLOR_LABELS = mapOf(
-    "red" to "Vins Rouges",
-    "white" to "Vins Blancs",
-    "rose" to "Vins Rosés",
-    "sparkling" to "Vins Effervescents",
-    "sweet" to "Vins Doux",
-    "fortified" to "Vins Fortifiés",
-)
-
 /**
  * Whole cellar page as ONE scrollable list: action cards, the
  * household-wide "Ma collection" summary, unassigned bottles, then every
@@ -517,6 +510,7 @@ private fun CellarUnitsContent(
     onScan: () -> Unit,
     onEditUnit: (CellarUnitDto) -> Unit,
     onDeleteUnit: (CellarUnitDto) -> Unit,
+    onOpenColorList: (color: String?) -> Unit,
 ) {
     val byColor = remember(units) {
         units.flatMap { it.locations }.mapNotNull { it.bottle }
@@ -566,6 +560,7 @@ private fun CellarUnitsContent(
                             subtitle = "$count bouteille" + if (count > 1) "s" else "",
                             badgeColor = wineColorFor(color).copy(alpha = 0.18f),
                             badgeContentColor = wineColorFor(color),
+                            onClick = { onOpenColorList(color) },
                         )
                     }
                 }

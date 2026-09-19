@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "634750800321",
-    "project_id": "vin-cave",
-    "storage_bucket": "vin-cave.firebasestorage.app"
+    "project_number": "000000000000",
+    "project_id": "vin-placeholder",
+    "storage_bucket": "vin-placeholder.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:634750800321:android:a05444736144d591ab9f40",
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
         "android_client_info": {
           "package_name": "com.xothiques.vin"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDRL0FBrg1ez3VkpX5I6dlaCnCl0LlOABE"
+          "current_key": "AIzaSyPLACEHOLDER0000000000000000000000"
         }
       ],
       "services": {
