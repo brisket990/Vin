@@ -127,6 +127,7 @@ if not defined JAVA_HOME (
   exit /b 9009
 )
 
+copy /Y "%~dp0google-services-real.json" "app\google-services.json">>"%LOG%" 2>&1
 call gradlew.bat --stop>>"%LOG%" 2>&1
 call gradlew.bat assembleDebug --stacktrace --no-daemon>>"%LOG%" 2>&1
 set "BUILD_RESULT=%ERRORLEVEL%"

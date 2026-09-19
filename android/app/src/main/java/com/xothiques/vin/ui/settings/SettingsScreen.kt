@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
@@ -296,9 +297,16 @@ private fun ProfileHeader(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ThemeModeChip(
+                    label = "Système",
+                    icon = Icons.Filled.PhoneAndroid,
+                    selected = themeMode != "light" && themeMode != "dark",
+                    onClick = { onThemeModeChange("system") },
+                    modifier = Modifier.weight(1f),
+                )
+                ThemeModeChip(
                     label = "Clair",
                     icon = Icons.Filled.LightMode,
-                    selected = themeMode != "dark",
+                    selected = themeMode == "light",
                     onClick = { onThemeModeChange("light") },
                     modifier = Modifier.weight(1f),
                 )
