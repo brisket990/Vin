@@ -24,13 +24,31 @@ Cette configuration est à faire une seule fois.
 3. Les champs surnom/certificat SHA-1 sont optionnels, tu peux les laisser
    vides.
 4. Télécharge le fichier `google-services.json` proposé au téléchargement.
-5. Remplace le fichier placeholder du dépôt par celui-ci :
-   `android/app/google-services.json`
+5. ⚠️ Ne remplace **jamais** le fichier directement dans le dépôt git
+   (`android/app/google-services.json` n'y existe plus, seul un modèle
+   `android/app/google-services.json.example` est versionné — voir
+   pourquoi juste en dessous). Place plutôt ton vrai fichier téléchargé sous
+   le nom `google-services-real.json`, **à côté de `build14.bat`** (donc en
+   dehors du dossier `android`). `build14.bat` le copie désormais
+   automatiquement vers `android\app\google-services.json` avant chaque
+   build.
 6. Reconstruis l'app avec `build14.bat` comme d'habitude.
 
-Sans cette étape, l'app compile quand même (le placeholder est valide
-structurellement) mais aucun token ne sera généré et aucune notification ne
-pourra être reçue.
+⚠️ **Important — ne jamais commiter ce fichier.** `google-services.json`
+n'est pas un secret critique (il est de toute façon embarqué dans chaque
+APK), mais ce n'est pas non plus une bonne pratique de le versionner
+publiquement, et surtout : le dépôt de ce projet est un **repo GitHub
+public**, utilisé tel quel comme source de déploiement Coolify. Le fichier
+`google-services-real.json` et l'ancien `android/app/google-services.json`
+(remplacé par le vrai fichier) ont déjà été poussés par erreur une fois —
+c'est sans gravité (pas de clé admin exposée), mais le `.gitignore` du
+projet bloque maintenant ces deux noms de fichier pour que ça ne se
+reproduise pas. Si jamais `git status` te montre l'un de ces fichiers comme
+prêt à être commité, ne fais pas `git add -A` dessus.
+
+Sans l'étape 5, l'app compile quand même (le modèle `.example` sert de
+gabarit) mais aucun token ne sera généré et aucune notification ne pourra
+être reçue.
 
 ## 3. Générer la clé de service pour le backend
 

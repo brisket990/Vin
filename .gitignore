@@ -13,3 +13,11 @@ android/local.properties
 android/.idea/
 android/*.iml
 android/captures/
+
+# Real Firebase config -- never commit these. Only the placeholder template
+# (android/app/google-services.json.example) is tracked. Keep the real file
+# either as android/app/google-services.json (untracked, thanks to the line
+# below) or, for build14.bat's workflow, as google-services-real.json next to
+# the script -- either way it must never be `git add`-ed.
+android/app/google-services.json
+google-services-real.json
