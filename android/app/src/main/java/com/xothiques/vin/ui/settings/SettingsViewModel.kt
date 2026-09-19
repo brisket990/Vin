@@ -204,12 +204,29 @@ class SettingsViewModel @Inject constructor(
 
     /** Sends an immediate test push, so the user can verify the whole chain
      *  (Firebase configured on the backend + a real google-services.json on
-     *  this phone) without waiting for tomorrow's 9am reminder cron. */
+     *  this phone) without waiting for tomorrow's 9am reminder cron.
+     *
+     *  Re-registers this device's token first, unlike the automatic one-shot
+     *  registration on app launch (PushNotificationViewModel), which
+     *  silently swallows failures -- if that one failed quietly (Play
+     *  Services unavailable, no network at launch, ...) the backend would
+     *  keep reporting "no device registered" forever with no way to know
+     *  why. Here, a registration failure is surfaced as the error instead of
+     *  masked behind that generic message. */
     fun sendTestNotification() {
         viewModelScope.launch {
             _testNotificationState.value = UiState.Loading
             _testNotificationState.value = try {
-                UiState.Success(notificationsRepository.sendTest())
+                val registrationFailure = runCatching { notificationsRepository.registerCurrentDevice() }
+                    .exceptionOrNull()
+                if (registrationFailure != null) {
+                    UiState.Error(
+                        "Impossible d'obtenir un token de notification sur cet appareil : " +
+                            registrationFailure.toUserMessage(),
+                    )
+                } else {
+                    UiState.Success(notificationsRepository.sendTest())
+                }
             } catch (t: Throwable) {
                 UiState.Error(t.toUserMessage())
             }

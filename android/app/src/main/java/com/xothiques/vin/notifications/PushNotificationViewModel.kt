@@ -2,11 +2,9 @@ package com.xothiques.vin.notifications
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.messaging.FirebaseMessaging
 import com.xothiques.vin.data.repository.NotificationsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 /**
@@ -27,10 +25,7 @@ class PushNotificationViewModel @Inject constructor(
 
     fun registerCurrentDevice() {
         viewModelScope.launch {
-            runCatching {
-                val token = FirebaseMessaging.getInstance().token.await()
-                notificationsRepository.registerDevice(token)
-            }
+            runCatching { notificationsRepository.registerCurrentDevice() }
         }
     }
 }
