@@ -18,8 +18,14 @@ import { RolesGuard } from './guards/roles.guard.js';
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
+          // There's no refresh-token flow (see AuthInterceptor.kt on the
+          // Android side for what happens once a token does expire: the
+          // whole app drops back to the login screen), so a short lifetime
+          // just means periodic surprise logouts for an app that's used
+          // sporadically. 180 days trades that off against the token still
+          // getting cycled a few times a year.
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
-            '7d') as unknown as number,
+            '180d') as unknown as number,
         },
       }),
     }),
